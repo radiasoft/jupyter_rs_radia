@@ -17,7 +17,7 @@ To install for jupyterlab
 
 For a development installation (requires npm),
 
-    $ git clone https://github.com/RadiaSoft LLC/jupyter-rs-vtk-widget.git
+    $ git clone https://github.com/radiasoft/rsjpyradia.git
     $ cd jupyter-rs-vtk-widget
     $ pip install -e .
     $ jupyter nbextension install --py --symlink --sys-prefix jupyter_rs_vtk_widget

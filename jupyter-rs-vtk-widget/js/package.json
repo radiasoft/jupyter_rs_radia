@@ -6,7 +6,7 @@
   "main": "lib/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RadiaSoft LLC/jupyter-rs-vtk-widget.git"
+    "url": "https://github.com/radiasoft/rsjpyradia"
   },
   "keywords": [
     "ipython",
