@@ -1,10 +1,10 @@
-var _ = require('lodash');
-var $ = require('jquery');
+let _ = require('lodash');
+let $ = require('jquery');
 require('vtk.js');
-var widgets = require('@jupyter-widgets/base');
+let widgets = require('@jupyter-widgets/base');
 
-
-var fsRenderer;
+let srdbg = console.log.bind(console);
+let srlog = console.log.bind(console);
 
 var template = [
     '<div style="border-style: solid; border-color: blue;">',
@@ -15,19 +15,13 @@ var template = [
     '</div>'
 ].join('');
 
+
 function indexArray(size) {
     var res = [];
     for (var i = 0; i < size; i++) {
       res.push(i);
     }
     return res;
-}
-
-function removeActors() {
-    var renderer = fsRenderer.getRenderer();
-    renderer.getActors().forEach(function(actor) {
-      renderer.removeActor(actor);
-    });
 }
 
 // Custom Model. Custom widgets models must at least provide default values
@@ -49,48 +43,38 @@ var VTKModel = widgets.DOMWidgetModel.extend({
     defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
         _model_name : 'VTKModel',
         _view_name : 'VTKView',
+        //_model_name : 'VTKContentModel',
+        //_view_name : 'VTKContentView',
         _model_module : 'jupyter-rs-vtk-widget',
         _view_module : 'jupyter-rs-vtk-widget',
         _model_module_version : '0.0.1',
         _view_module_version : '0.0.1',
-        model_data: {}
+        model_data: {},
     })
 });
+
 
 
 // Custom View. Renders the widget model.
 var VTKView = widgets.DOMWidgetView.extend({
 
-    load: function(url) {
-        var widget = this;
-        $.ajax({
-            url: url,
-            context: widget.el,
-            success: function (res, status, xhr) {
-                console.log('LOADED VIEWER HTML FROM', url, 'STATUS', status, 'DATA', res, 'INTO', widget.el);
-                widget.addNode($(res));
-            },
-            error: function (xhr, status, err) {
-                console.error('FAILED TO LOAD', url, err, status);
-            },
-            method: 'GET'
-        });
-    },
+    fsRenderer: null,
+    isLoaded: false,
 
     refresh: function(o) {
 
-        if (! fsRenderer) {
-            fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
+        srdbg('REFRESH');
+        if (! this.fsRenderer) {
+            this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 background: [1, 0.97647, 0.929412],
                 container: $('.vtk-content')[0],
             });
         }
 
-        removeActors();
+        this.removeActors();
         let sceneData = this.model.get('model_data');
-        //console.log('CALLING REFRESH', sceneData);
         if ($.isEmptyObject(sceneData)) {
-            console.warn('NO DATA');
+            srlog('No data');
             return;
         }
 
@@ -150,38 +134,82 @@ var VTKView = widgets.DOMWidgetView.extend({
         mapper.setInputData(pd);
         actor.setMapper(mapper);
 
-        //if (wantEdges) {
-          actor.getProperty().setEdgeVisibility(true);
-        //}
-        fsRenderer.getRenderer().addActor(actor);
-        var renderer = fsRenderer.getRenderer();
+        actor.getProperty().setEdgeVisibility(true);
+        this.fsRenderer.getRenderer().addActor(actor);
+        this.resetView();
+        /*
+        var renderer = this.fsRenderer.getRenderer();
         var cam = renderer.get().activeCamera;
         cam.setPosition(1, -0.4, 0);
         cam.setFocalPoint(0, 0, 0);
         cam.setViewUp(0, 0, 1);
         renderer.resetCamera();
         cam.zoom(1.3);
-        fsRenderer.getRenderWindow().render();
+         */
+        this.fsRenderer.getRenderWindow().render();
+    },
 
-        console.log('sze', $(this.el).width(), $(this.el).height(), 'layout', this.layout);
+    removeActors: function() {
+        let r = this.fsRenderer.getRenderer();
+        r.getActors().forEach(function(actor) {
+            r.removeActor(actor);
+        });
     },
 
     render: function() {
-        console.log('CALLING RENDER');
-        this.model.on('change:model_data', this.data_changed, this);
-        $(this.el).append($(template));
-        console.log('DONE RENDER');
+        srdbg('RENDER');
+        this.model.on('change:model_data', this.refresh, this);
+        if (! this.isLoaded) {
+            $(this.el).append($(template));
+            this.isLoaded = true;
+        }
     },
 
-    data_changed: function(o) {
-        //console.log('data_changed');
-        this.refresh(o);
+    resetView: function() {
+        let r = this.fsRenderer.getRenderer();
+        let cam = r.get().activeCamera;
+        cam.setPosition(1, -0.4, 0);
+        cam.setFocalPoint(0, 0, 0);
+        cam.setViewUp(0, 0, 1);
+        r.resetCamera();
+        cam.zoom(1.3);
     }
 
 });
 
+var ViewerModel = widgets.DOMWidgetModel.extend({
+    //defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
+    //    model_data: {}
+    //})
+    defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
+        _model_name: 'ViewerModel',
+        _view_name: 'ViewerView',
+        _model_module: 'jupyter-rs-vtk-widget',
+        _view_module: 'jupyter-rs-vtk-widget',
+        _model_module_version: '0.0.1',
+        _view_module_version: '0.0.1',
+        //content: {},
+        model_data: {},
+    }),
+}, {});
+
+var ViewerView = widgets.DOMWidgetView.extend({
+    render: function() {
+        var c = this.model.get('content');
+        var rb = this.model.get('reset_button');
+        srdbg('Viewer render content', c, 'eb', rb);
+        //this.model.get('content').render();
+        //this.model.on('change:model_data', this.update, this);
+    },
+
+    update: function () {
+        this.model.get('content').model_data = this.model.get('model_data');
+    }
+});
 
 module.exports = {
-    VTKModel : VTKModel,
-    VTKView : VTKView
+    ViewerModel: ViewerModel,
+    ViewerView: ViewerView,
+    VTKModel: VTKModel,
+    VTKView: VTKView
 };
