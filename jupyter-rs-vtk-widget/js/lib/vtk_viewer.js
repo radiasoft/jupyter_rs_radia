@@ -2,13 +2,14 @@ let _ = require('lodash');
 let $ = require('jquery');
 require('vtk.js');
 let widgets = require('@jupyter-widgets/base');
+let controls = require('@jupyter-widgets/controls');
 
-let srdbg = console.log.bind(console);
-let srlog = console.log.bind(console);
+let rsdbg = console.log.bind(console);
+let rslog = console.log.bind(console);
 
 var template = [
-    '<div style="border-style: solid; border-color: blue;">',
-        '<div style="font-weight: bold; text-align: center">VIEW VTK</div>',
+    '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
+        '<div style="font-weight: normal; text-align: center">Radia viewer</div>',
         '<div style="margin: 1em;">',
             '<div class="vtk-content"></div>',
         '</div>',
@@ -23,6 +24,7 @@ function indexArray(size) {
     }
     return res;
 }
+
 
 // Custom Model. Custom widgets models must at least provide default values
 // for model attributes, including
@@ -43,16 +45,12 @@ var VTKModel = widgets.DOMWidgetModel.extend({
     defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
         _model_name : 'VTKModel',
         _view_name : 'VTKView',
-        //_model_name : 'VTKContentModel',
-        //_view_name : 'VTKContentView',
         _model_module : 'jupyter-rs-vtk-widget',
         _view_module : 'jupyter-rs-vtk-widget',
         _model_module_version : '0.0.1',
         _view_module_version : '0.0.1',
-        model_data: {},
     })
 });
-
 
 
 // Custom View. Renders the widget model.
@@ -61,9 +59,22 @@ var VTKView = widgets.DOMWidgetView.extend({
     fsRenderer: null,
     isLoaded: false,
 
+    handleCustomMessages: function(msg) {
+        if (msg.type === 'debug') {
+            rsdbg(msg.msg);
+        }
+
+        if (msg.type === 'reset') {
+            this.resetView();
+        }
+
+        if (msg.type == 'axis') {
+            this.setAxis(msg.axis, msg.dir);
+        }
+    },
+
     refresh: function(o) {
 
-        srdbg('REFRESH');
         if (! this.fsRenderer) {
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 background: [1, 0.97647, 0.929412],
@@ -74,7 +85,8 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.removeActors();
         let sceneData = this.model.get('model_data');
         if ($.isEmptyObject(sceneData)) {
-            srlog('No data');
+            rslog('No data');
+            this.fsRenderer.getRenderWindow().render();
             return;
         }
 
@@ -137,16 +149,6 @@ var VTKView = widgets.DOMWidgetView.extend({
         actor.getProperty().setEdgeVisibility(true);
         this.fsRenderer.getRenderer().addActor(actor);
         this.resetView();
-        /*
-        var renderer = this.fsRenderer.getRenderer();
-        var cam = renderer.get().activeCamera;
-        cam.setPosition(1, -0.4, 0);
-        cam.setFocalPoint(0, 0, 0);
-        cam.setViewUp(0, 0, 1);
-        renderer.resetCamera();
-        cam.zoom(1.3);
-         */
-        this.fsRenderer.getRenderWindow().render();
     },
 
     removeActors: function() {
@@ -157,53 +159,65 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
-        srdbg('RENDER');
         this.model.on('change:model_data', this.refresh, this);
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.isLoaded = true;
+            this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
         }
     },
 
     resetView: function() {
+        this.setCam([1, -0.4, 0], [0, 0, 1]);
+    },
+
+    // may have to get axis orientation from data?
+    setAxis: function (axis, dir) {
+        let camPos = axis === 'X' ? [dir, 0, 0] : (axis === 'Y' ? [0, dir, 0] : [0, 0, dir] );
+        let camViewUp = axis === 'Y' ? [0, 0, 1] : [0, 1, 0];
+        this.setCam(camPos, camViewUp);
+    },
+
+    setCam: function(pos, vu) {
         let r = this.fsRenderer.getRenderer();
         let cam = r.get().activeCamera;
-        cam.setPosition(1, -0.4, 0);
+        cam.setPosition(pos[0], pos[1], pos[2]);
         cam.setFocalPoint(0, 0, 0);
-        cam.setViewUp(0, 0, 1);
+        cam.setViewUp(vu[0], vu[1], vu[2]);
         r.resetCamera();
         cam.zoom(1.3);
+        this.fsRenderer.getRenderWindow().render();
     }
 
 });
 
-var ViewerModel = widgets.DOMWidgetModel.extend({
-    //defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
-    //    model_data: {}
-    //})
-    defaults: _.extend(widgets.DOMWidgetModel.prototype.defaults(), {
+var ViewerModel = controls.VBoxModel.extend({
+
+    defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
         _model_name: 'ViewerModel',
         _view_name: 'ViewerView',
         _model_module: 'jupyter-rs-vtk-widget',
         _view_module: 'jupyter-rs-vtk-widget',
         _model_module_version: '0.0.1',
         _view_module_version: '0.0.1',
-        //content: {},
+        content: {},
         model_data: {},
+        reset_button: controls.ButtonModel
     }),
 }, {});
 
-var ViewerView = widgets.DOMWidgetView.extend({
-    render: function() {
-        var c = this.model.get('content');
-        var rb = this.model.get('reset_button');
-        srdbg('Viewer render content', c, 'eb', rb);
-        //this.model.get('content').render();
-        //this.model.on('change:model_data', this.update, this);
+var ViewerView = controls.VBoxView.extend({
+
+    handleCustomMessages: function(msg) {
+        if (msg.type === 'debug') {
+            rsdbg(msg.msg);
+        }
     },
 
-    update: function () {
-        this.model.get('content').model_data = this.model.get('model_data');
+    render: function() {
+        // this is effectively "super.render()"
+        controls.VBoxView.prototype.render.apply((this));
+        this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
     }
 });
 
