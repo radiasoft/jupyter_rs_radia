@@ -1,10 +1,11 @@
 import ipywidgets as widgets
+import sys
 import traitlets
 
-from traitlets import Any, Dict, Instance, List, Unicode
-
+from traitlets import Any, Bool, Dict, Instance, List, Unicode
 
 # helper functions
+# send a message to the front end to print to js console
 def rsdebug(widget, msg):
     widget.send({
         'type': 'debug',
@@ -21,21 +22,36 @@ class VTK(widgets.DOMWidget):
     _model_module = Unicode('jupyter-rs-vtk-widget').tag(sync=True)
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
-    model_data = Dict({}).tag(sync=True)
+    model_data = Dict(default_value={}).tag(sync=True)
+    bg_color = widgets.Color('#fffaed').tag(sync=True)
+    marker_visible = Bool(True).tag(sync=True)
+    title = Unicode('').tag(sync=True)
 
-    # might want traitlets for bare vtk views
-    #@traitlets.default('layout')
-    #def _default_layout(self):
-    #    return widgets.Layout(align_self='stretch')
+    def set_title(self, t):
+        self.title = t
+
+    @traitlets.default('layout')
+    def _default_layout(self):
+        return widgets.Layout(
+            width='50%',
+            min_width='25%',
+            margin='auto'
+        )
 
     def _vtk_displayed(self, o):
         #rsdebug(self, 'VTK ready')
+        #self.send({'type': 'refresh'})
         pass
 
-    def __init__(self, data={}):
-        self.model_data = data
+    def __init__(self, title='', data=None, inset=False):
+        self.model_data = {} if data is None else data
+        self.title = title
         self.on_displayed(self._vtk_displayed)
         super(VTK, self).__init__()
+        if inset:
+            self.layout = widgets.Layout(
+                width='10%'
+            )
 
 
 # Note we need to subclass VBox in the javascript as well
@@ -50,11 +66,20 @@ class Viewer(widgets.VBox):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
 
     _axes = ['X', 'Y', 'Z']
+    # "into the screen", "out of the screen"
     _dirs = [u'\u2299', u'\u29bb']
+
+    def set_data(self, data):
+        # keep a local reference to the data for handlers
+        self.model_data = data
+        self.content.model_data = data
 
     @traitlets.default('layout')
     def _default_layout(self):
         return widgets.Layout(align_self='stretch')
+
+    def _handle_change(self, change):
+        rsdebug('{}'.format(change))
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -66,18 +91,9 @@ class Viewer(widgets.VBox):
 
         self.content.send({'type': 'reset'})
 
-    # send a message to the front end to print to js console
-    def _rsdebug(self, msg):
-        self.send({
-            'type': 'debug',
-            'msg': 'KERNEL: ' + msg
-        })
-
     # send message to vtk widget to rotate scene with the given axis pointing in or out
     # of the screen
     def _set_axis(self, b):
-        # rsdebug(self, 'b {}'.format(b))
-
         a = b.description[0]
         d = 1 - 2 * Viewer._dirs.index(b.description[1])
         self.content.send({
@@ -92,23 +108,21 @@ class Viewer(widgets.VBox):
         d = self.axis_btns[axis]['dir']
         self.axis_btns[axis]['button'].description = axis + Viewer._dirs[int((1 - d) / 2)]
 
-    def set_data(self, data):
-        # keep a local reference to the data for handlers
-        self.model_data = data
-        self.content.model_data = data
-
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
         # but we need the widget to be ready first
         self.content.model_data = self.model_data
+        pass
 
-    def __init__(self, data={}):
+    def __init__(self, data=None):
+        if data is None:
+            data = {}
         self.model_data = data
 
         # don't initialize VTK with data - save until the view is ready
-        self.content = VTK()
+        self.content = VTK(title='MAGNET!')
 
-        self.reset_btn = widgets.Button(description='Reset Position')
+        self.reset_btn = widgets.Button(description='Reset Camera')
         self.reset_btn.on_click(self._reset_view)
 
         self.axis_btns = {}
@@ -120,12 +134,39 @@ class Viewer(widgets.VBox):
             self._set_axis_btn_desc(axis)
             self.axis_btns[axis]['button'].on_click(self._set_axis)
 
+        self.orientation_toggle = widgets.Checkbox(value=True, description='Show marker')
+
         axis_btn_grp = widgets.HBox(
             [self.axis_btns[a]['button'] for a in self.axis_btns],
-            layout={'justify-content': 'flex-end'}
+            layout={
+                'justify-content': 'flex-end'
+            }
         )
-        btn_grp = widgets.HBox([self.reset_btn, axis_btn_grp])
+
+        self.bg_color_pick = widgets.ColorPicker(
+            concise=True,
+            value=self.content.bg_color
+        )
+        color_pick_grp = widgets.HBox(
+            [widgets.Label('Background color'), self.bg_color_pick]
+        )
+
+        # links the values of two widgets
+        widgets.jslink(
+            (self.orientation_toggle, 'value'),
+            (self.content, 'marker_visible')
+        )
+        widgets.jslink(
+            (self.bg_color_pick, 'value'),
+            (self.content, 'bg_color')
+        )
+
+        btn_grp = widgets.HBox(
+            [self.reset_btn, axis_btn_grp, self.orientation_toggle],
+            layout=widgets.Layout(
+                padding='6px'
+            ))
 
         self.on_displayed(self._viewer_displayed)
-        super(Viewer, self).__init__(children=[self.content, btn_grp])
+        super(Viewer, self).__init__(children=[self.content, btn_grp, color_pick_grp])
 

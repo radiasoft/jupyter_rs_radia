@@ -9,7 +9,7 @@ let rslog = console.log.bind(console);
 
 var template = [
     '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
-        '<div style="font-weight: normal; text-align: center">Radia viewer</div>',
+        '<div class="viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div style="margin: 1em;">',
             '<div class="vtk-content"></div>',
         '</div>',
@@ -25,6 +25,60 @@ function indexArray(size) {
     return res;
 }
 
+function toPolyData(json) {
+    let colors = [];
+    for (var i = 0; i < json.lines.colors.length; i++) {
+      colors.push(Math.floor(255 * json.lines.colors[i]));
+    }
+    for (var i = 0; i < json.polygons.colors.length; i++) {
+      colors.push(Math.floor(255 * json.polygons.colors[i]));
+    }
+
+    let polys = [];
+    var polyIdx = 0;
+    let polyInds = indexArray(json.polygons.vertices.length / 3);
+    for (var i = 0; i < json.polygons.lengths.length; i++) {
+        var len = json.polygons.lengths[i];
+        polys.push(len);
+        for (var j = 0; j < len; j++) {
+            polys.push(polyInds[polyIdx]);
+            polyIdx++;
+        }
+    }
+    polys = new window.Uint32Array(polys);
+
+    let points = json.polygons.vertices;
+    let lineVertOffset = points.length / 3;
+    for (var i = 0; i < json.lines.vertices.length; i++) {
+        points.push(json.lines.vertices[i]);
+    }
+    let lines = [];
+    var lineIdx = 0;
+    let lineInds = indexArray(json.lines.vertices.length / 3);
+    for (var i = 0; i < json.lines.lengths.length; i++) {
+        var len = json.lines.lengths[i];
+        lines.push(len);
+        for (var j = 0; j < len; j++) {
+            lines.push(lineInds[lineIdx] + lineVertOffset);
+            lineIdx++;
+        }
+    }
+    lines = new window.Uint32Array(lines);
+    points = new window.Float32Array(points);
+
+    let pd = vtk.Common.DataModel.vtkPolyData.newInstance();
+    pd.getPoints().setData(points, 3);
+    pd.getLines().setData(lines);
+    pd.getPolys().setData(polys);
+
+    pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
+      numberOfComponents: 3,
+      values: colors,
+      dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
+    }));
+
+    return pd;
+}
 
 // Custom Model. Custom widgets models must at least provide default values
 // for model attributes, including
@@ -49,6 +103,9 @@ var VTKModel = widgets.DOMWidgetModel.extend({
         _view_module : 'jupyter-rs-vtk-widget',
         _model_module_version : '0.0.1',
         _view_module_version : '0.0.1',
+        bg_color: '#fffaed',
+        marker_visible: true,
+        title: ''
     })
 });
 
@@ -58,28 +115,55 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     fsRenderer: null,
     isLoaded: false,
+    orientationMarker: null,
 
     handleCustomMessages: function(msg) {
+        if (msg.type == 'axis') {
+            this.setAxis(msg.axis, msg.dir);
+        }
+
         if (msg.type === 'debug') {
             rsdbg(msg.msg);
+        }
+
+        if (msg.type === 'refresh') {
+            rsdbg('msg rfrs');
+            //this.refresh();
         }
 
         if (msg.type === 'reset') {
             this.resetView();
         }
 
-        if (msg.type == 'axis') {
-            this.setAxis(msg.axis, msg.dir);
-        }
+    },
+
+    setData: function(d) {
+        this.model.set('model_data', d);
+        this.refresh();
     },
 
     refresh: function(o) {
 
+        //rsdbg(this.model.get('title'), 'REFRESH');
         if (! this.fsRenderer) {
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
-                background: [1, 0.97647, 0.929412],
-                container: $('.vtk-content')[0],
+                container: $(this.el).find('.vtk-content')[0],
             });
+            this.setBgColor();
+        }
+
+        if (! this.orientationMarker) {
+            this.orientationMarker = vtk.Interaction.Widgets.vtkOrientationMarkerWidget.newInstance({
+                actor: vtk.Rendering.Core.vtkAxesActor.newInstance(),
+                interactor: this.fsRenderer.getRenderWindow().getInteractor()
+            });
+            this.orientationMarker.setEnabled(true);
+            this.orientationMarker.setViewportCorner(
+                vtk.Interaction.Widgets.vtkOrientationMarkerWidget.Corners.TOP_RIGHT
+            );
+            this.orientationMarker.setViewportSize(0.08);
+            this.orientationMarker.setMinPixelSize(100);
+            this.orientationMarker.setMaxPixelSize(300);
         }
 
         this.removeActors();
@@ -89,7 +173,10 @@ var VTKView = widgets.DOMWidgetView.extend({
             this.fsRenderer.getRenderWindow().render();
             return;
         }
+        let pData = toPolyData(sceneData);
 
+        //vv to radia class? vv//
+        /*
         let colors = [];
         for (var i = 0; i < sceneData.lines.colors.length; i++) {
           colors.push(Math.floor(255 * sceneData.lines.colors[i]));
@@ -140,10 +227,13 @@ var VTKView = widgets.DOMWidgetView.extend({
           values: colors,
           dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
         }));
+        //^^ to raida class? ^^//
+        */
 
         var mapper = vtk.Rendering.Core.vtkMapper.newInstance();
         var actor = vtk.Rendering.Core.vtkActor.newInstance();
-        mapper.setInputData(pd);
+        //mapper.setInputData(pd);
+        mapper.setInputData(pData);
         actor.setMapper(mapper);
 
         actor.getProperty().setEdgeVisibility(true);
@@ -159,9 +249,14 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
+        //rsdbg(this.model.get('title'), 'RENDER');
+        this.model.on('change:title', this.refresh, this);
         this.model.on('change:model_data', this.refresh, this);
+        this.model.on('change:bg_color', this.setBgColor, this);
+        this.model.on('change:marker_visible', this.toggleOrientationMarker, this);
         if (! this.isLoaded) {
             $(this.el).append($(template));
+            this.setTitle();
             this.isLoaded = true;
             this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
         }
@@ -186,6 +281,21 @@ var VTKView = widgets.DOMWidgetView.extend({
         cam.setViewUp(vu[0], vu[1], vu[2]);
         r.resetCamera();
         cam.zoom(1.3);
+        this.orientationMarker.updateMarkerOrientation();
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setBgColor: function() {
+        this.fsRenderer.setBackground(vtk.Common.Core.vtkMath.hex2float(this.model.get('bg_color')));
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setTitle: function() {
+        $(this.el).find('.viewer-title').text(this.model.get('title'));
+    },
+
+    toggleOrientationMarker: function () {
+        this.orientationMarker.setEnabled(this.model.get('marker_visible'));
         this.fsRenderer.getRenderWindow().render();
     }
 
@@ -200,9 +310,6 @@ var ViewerModel = controls.VBoxModel.extend({
         _view_module: 'jupyter-rs-vtk-widget',
         _model_module_version: '0.0.1',
         _view_module_version: '0.0.1',
-        content: {},
-        model_data: {},
-        reset_button: controls.ButtonModel
     }),
 }, {});
 
