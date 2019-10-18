@@ -1,7 +1,7 @@
 import ipywidgets as widgets
 import radia as rad
-import traitlets
 
+from jupyter_rs_vtk_widget import vtk_viewer
 from traitlets import Any, Dict, Instance, List, Unicode
 
 @widgets.register
@@ -21,14 +21,20 @@ class RadiaViewer(widgets.VBox):
         self.model_data = {} if data is None else data
         self.mgr = RadiaGeomMgr() if mgr is None else mgr
         self.on_displayed(self._radia_displayed)
-        #self.vtk_viewer
-        super(RadiaViewer, self).__init__()
-
+        self.main_viewer = vtk_viewer.Viewer()
+        self.component_viewer = vtk_viewer.VTK()
+        comp_box = widgets.HBox([self.component_viewer], layout=widgets.Layout(
+            height='10%',
+            align_self = 'stretch'
+        ))
+        super(RadiaViewer, self).__init__(children=[
+            self.main_viewer, comp_box
+        ])
 
 class RadiaGeomMgr():
-    """Manager for multiple geometries"""
+    """Manager for multiple geometries (Radia objects)"""
 
-    def add_geom(self, geom, geom_name):
+    def add_geom(self, geom_name, geom):
         self._geoms[geom_name] = geom
 
     def get_geom(self, name):
@@ -40,13 +46,31 @@ class RadiaGeomMgr():
     def get_geoms(self):
         return self._geoms
 
-    def to_data(self, name):
-        g = self.get_geom(name)
-        if not g:
-            raise ValueError('No such geometry {}'.format(name))
-        return rad.ObjGeometry(g)
+    # A container is also a geometry
+    def make_container(self, *args):
+        ctr = {
+            'geoms': []
+        }
+        for g_name in args:
+            # key error if does not exist
+            g = self.get_geom(g_name)
+            ctr['geoms'].append(g)
 
+    def show_viewer(self, geom_name):
+        # put geom in main viewer
         return
+
+    def show_component_viewer(self, geom_name):
+        # put geom in main viewer
+        return
+
+    def to_data(self, name, axes=False):
+        g = self.get_geom(name)
+        #TODO(mvk): if no color, get color from parent if any
+        if not g:
+            raise KeyError('No such geometry {}'.format(name))
+        return rad.ObjGeometry(g, 'Axes->' + ('Yes' if axes else 'No'))
 
     def __init__(self):
         self._geoms = {}
+

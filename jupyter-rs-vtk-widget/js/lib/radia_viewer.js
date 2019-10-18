@@ -1,13 +1,12 @@
 let _ = require('lodash');
 let $ = require('jquery');
-let widgets = require('@jupyter-widgets/base');
 let controls = require('@jupyter-widgets/controls');
+let widgets = require('@jupyter-widgets/base');
 
 let rsdbg = console.log.bind(console);
 let rslog = console.log.bind(console);
 
 var RadiaViewerModel = controls.VBoxModel.extend({
-
     defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
         _model_name: 'RadiaViewerModel',
         _view_name: 'RadiaViewerView',
@@ -30,10 +29,12 @@ var RadiaViewerView = controls.VBoxView.extend({
         // this is effectively "super.render()"
         controls.VBoxView.prototype.render.apply((this));
         this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
-    }
+    },
+
 });
 
 module.exports = {
     RadiaViewerModel: RadiaViewerModel,
     RadiaViewerView: RadiaViewerView
 };
+

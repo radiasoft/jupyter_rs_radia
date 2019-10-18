@@ -25,13 +25,16 @@ function indexArray(size) {
     return res;
 }
 
+//vv to radia class? vv//
 function toPolyData(json) {
     let colors = [];
     for (var i = 0; i < json.lines.colors.length; i++) {
       colors.push(Math.floor(255 * json.lines.colors[i]));
+      //colors.push(1.0);
     }
     for (var i = 0; i < json.polygons.colors.length; i++) {
       colors.push(Math.floor(255 * json.polygons.colors[i]));
+      //colors.push(1.0);
     }
 
     let polys = [];
@@ -72,13 +75,14 @@ function toPolyData(json) {
     pd.getPolys().setData(polys);
 
     pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
-      numberOfComponents: 3,
-      values: colors,
-      dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
+        numberOfComponents: 3,  //4 for opacity
+        values: colors,
+        dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
     }));
 
     return pd;
 }
+//^^ to raida class? ^^//
 
 // Custom Model. Custom widgets models must at least provide default values
 // for model attributes, including
@@ -104,7 +108,8 @@ var VTKModel = widgets.DOMWidgetModel.extend({
         _model_module_version : '0.0.1',
         _view_module_version : '0.0.1',
         bg_color: '#fffaed',
-        marker_visible: true,
+        poly_alpha: 1.0,
+        show_marker: true,
         title: ''
     })
 });
@@ -116,6 +121,21 @@ var VTKView = widgets.DOMWidgetView.extend({
     fsRenderer: null,
     isLoaded: false,
     orientationMarker: null,
+    viewPropHandlers:  {
+        title: this.setTitle,
+        bg_color: this.setBgColor,
+        show_marker: this.setMarkerVisible,
+        show_edges: this.setEdgesVisible,
+        poly_alpha: this.setPolyAlpha,
+    },
+
+    addViewPort: function() {
+
+    },
+
+    addViewPorts: function() {
+
+    },
 
     handleCustomMessages: function(msg) {
         if (msg.type == 'axis') {
@@ -150,6 +170,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 container: $(this.el).find('.vtk-content')[0],
             });
             this.setBgColor();
+            this.setEdgesVisible();
         }
 
         if (! this.orientationMarker) {
@@ -157,13 +178,13 @@ var VTKView = widgets.DOMWidgetView.extend({
                 actor: vtk.Rendering.Core.vtkAxesActor.newInstance(),
                 interactor: this.fsRenderer.getRenderWindow().getInteractor()
             });
-            this.orientationMarker.setEnabled(true);
             this.orientationMarker.setViewportCorner(
                 vtk.Interaction.Widgets.vtkOrientationMarkerWidget.Corners.TOP_RIGHT
             );
             this.orientationMarker.setViewportSize(0.08);
             this.orientationMarker.setMinPixelSize(100);
             this.orientationMarker.setMaxPixelSize(300);
+            this.setMarkerVisible();
         }
 
         this.removeActors();
@@ -173,66 +194,10 @@ var VTKView = widgets.DOMWidgetView.extend({
             this.fsRenderer.getRenderWindow().render();
             return;
         }
+
         let pData = toPolyData(sceneData);
-
-        //vv to radia class? vv//
-        /*
-        let colors = [];
-        for (var i = 0; i < sceneData.lines.colors.length; i++) {
-          colors.push(Math.floor(255 * sceneData.lines.colors[i]));
-        }
-        for (var i = 0; i < sceneData.polygons.colors.length; i++) {
-          colors.push(Math.floor(255 * sceneData.polygons.colors[i]));
-        }
-
-        var polys = [];
-        var polyIdx = 0;
-        var polyInds = indexArray(sceneData.polygons.vertices.length / 3);
-        for (var i = 0; i < sceneData.polygons.lengths.length; i++) {
-            var len = sceneData.polygons.lengths[i];
-            polys.push(len);
-            for (var j = 0; j < len; j++) {
-                polys.push(polyInds[polyIdx]);
-                polyIdx++;
-            }
-        }
-        polys = new window.Uint32Array(polys);
-
-        let points = sceneData.polygons.vertices;
-        var lineVertOffset = points.length / 3;
-        for (var i = 0; i < sceneData.lines.vertices.length; i++) {
-            points.push(sceneData.lines.vertices[i]);
-        }
-        var lines = [];
-        var lineIdx = 0;
-        var lineInds = indexArray(sceneData.lines.vertices.length / 3);
-        for (var i = 0; i < sceneData.lines.lengths.length; i++) {
-            var len = sceneData.lines.lengths[i];
-            lines.push(len);
-            for (var j = 0; j < len; j++) {
-                lines.push(lineInds[lineIdx] + lineVertOffset);
-                lineIdx++;
-            }
-        }
-        lines = new window.Uint32Array(lines);
-        points = new window.Float32Array(points);
-
-        var pd = vtk.Common.DataModel.vtkPolyData.newInstance();
-        pd.getPoints().setData(points, 3);
-        pd.getLines().setData(lines);
-        pd.getPolys().setData(polys);
-
-        pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
-          numberOfComponents: 3,
-          values: colors,
-          dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
-        }));
-        //^^ to raida class? ^^//
-        */
-
         var mapper = vtk.Rendering.Core.vtkMapper.newInstance();
         var actor = vtk.Rendering.Core.vtkActor.newInstance();
-        //mapper.setInputData(pd);
         mapper.setInputData(pData);
         actor.setMapper(mapper);
 
@@ -249,11 +214,16 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
-        //rsdbg(this.model.get('title'), 'RENDER');
-        this.model.on('change:title', this.refresh, this);
         this.model.on('change:model_data', this.refresh, this);
+
         this.model.on('change:bg_color', this.setBgColor, this);
-        this.model.on('change:marker_visible', this.toggleOrientationMarker, this);
+        this.model.on('change:poly_alpha', this.setPolyAlpha, this);
+        this.model.on('change:show_marker', this.setMarkerVisible, this);
+        this.model.on('change:show_edges', this.setEdgesVisible, this);
+        this.model.on('change:title', this.refresh, this);
+        //for (let prop in this.viewPropHandlers) {
+        //    this.model.on('change:' + prop, this.viewPropHandlers[prop], this);
+        //}
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
@@ -267,7 +237,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     // may have to get axis orientation from data?
-    setAxis: function (axis, dir) {
+    setAxis: function(axis, dir) {
         let camPos = axis === 'X' ? [dir, 0, 0] : (axis === 'Y' ? [0, dir, 0] : [0, 0, dir] );
         let camViewUp = axis === 'Y' ? [0, 0, 1] : [0, 1, 0];
         this.setCam(camPos, camViewUp);
@@ -290,13 +260,38 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
+    setEdgesVisible: function() {
+        let v = this;
+        let r = this.fsRenderer.getRenderer();
+        r.getActors().forEach(function(actor) {
+            actor.getProperty().setEdgeVisibility(v.model.get('show_edges'));
+        });
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setMarkerVisible: function() {
+        this.orientationMarker.setEnabled(this.model.get('show_marker'));
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setPolyAlpha: function() {
+        let v = this;
+        let r = this.fsRenderer.getRenderer();
+        r.getActors().forEach(function(actor) {
+            //TODO(mvk): should only affect polygons, not entire actor
+            //let m = actor.getMapper();
+            //let p = m.getInputData();
+            actor.getProperty().setOpacity(v.model.get('poly_alpha'));
+        });
+        this.fsRenderer.getRenderWindow().render();
+    },
+
     setTitle: function() {
         $(this.el).find('.viewer-title').text(this.model.get('title'));
     },
 
-    toggleOrientationMarker: function () {
-        this.orientationMarker.setEnabled(this.model.get('marker_visible'));
-        this.fsRenderer.getRenderWindow().render();
+    setViewProperty(prop) {
+
     }
 
 });

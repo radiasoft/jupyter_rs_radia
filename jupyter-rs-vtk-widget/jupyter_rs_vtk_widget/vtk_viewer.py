@@ -1,8 +1,7 @@
 import ipywidgets as widgets
-import sys
 import traitlets
 
-from traitlets import Any, Bool, Dict, Instance, List, Unicode
+from traitlets import Any, Bool, Float, Dict, Instance, List, Unicode
 
 # helper functions
 # send a message to the front end to print to js console
@@ -22,9 +21,12 @@ class VTK(widgets.DOMWidget):
     _model_module = Unicode('jupyter-rs-vtk-widget').tag(sync=True)
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
-    model_data = Dict(default_value={}).tag(sync=True)
+
     bg_color = widgets.Color('#fffaed').tag(sync=True)
-    marker_visible = Bool(True).tag(sync=True)
+    model_data = Dict(default_value={}).tag(sync=True)
+    poly_alpha = Float(1.0).tag(sync=True)
+    show_edges = Bool(True).tag(sync=True)
+    show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
 
     def set_title(self, t):
@@ -43,15 +45,19 @@ class VTK(widgets.DOMWidget):
         #self.send({'type': 'refresh'})
         pass
 
-    def __init__(self, title='', data=None, inset=False):
+    def __init__(self, title='', bg_color='#fffaed', data=None, inset=False):
         self.model_data = {} if data is None else data
         self.title = title
+        self.bg_color = bg_color
         self.on_displayed(self._vtk_displayed)
         super(VTK, self).__init__()
         if inset:
             self.layout = widgets.Layout(
                 width='10%'
             )
+            self.show_marker = False
+            self.poly_alpha = 0.25
+            self.show_edges = True
 
 
 # Note we need to subclass VBox in the javascript as well
@@ -120,7 +126,7 @@ class Viewer(widgets.VBox):
         self.model_data = data
 
         # don't initialize VTK with data - save until the view is ready
-        self.content = VTK(title='MAGNET!')
+        self.content = VTK()
 
         self.reset_btn = widgets.Button(description='Reset Camera')
         self.reset_btn.on_click(self._reset_view)
@@ -135,6 +141,7 @@ class Viewer(widgets.VBox):
             self.axis_btns[axis]['button'].on_click(self._set_axis)
 
         self.orientation_toggle = widgets.Checkbox(value=True, description='Show marker')
+        self.edge_toggle = widgets.Checkbox(value=True, description='Show edges')
 
         axis_btn_grp = widgets.HBox(
             [self.axis_btns[a]['button'] for a in self.axis_btns],
@@ -147,26 +154,46 @@ class Viewer(widgets.VBox):
             concise=True,
             value=self.content.bg_color
         )
+        # separate label to avoid text truncation
         color_pick_grp = widgets.HBox(
             [widgets.Label('Background color'), self.bg_color_pick]
         )
 
-        # links the values of two widgets
-        widgets.jslink(
-            (self.orientation_toggle, 'value'),
-            (self.content, 'marker_visible')
+        self.poly_alpha_slider = widgets.FloatSlider(
+            description='Alpha', min=0.0, max=1.0, step=0.05,
+            value=self.content.poly_alpha
         )
+
+        view_props_grp = widgets.HBox(
+            [color_pick_grp, self.poly_alpha_slider, self.edge_toggle]
+        )
+
+        # links the values of two widgets
         widgets.jslink(
             (self.bg_color_pick, 'value'),
             (self.content, 'bg_color')
         )
+        widgets.jslink(
+            (self.edge_toggle, 'value'),
+            (self.content, 'show_edges')
+        )
+        widgets.jslink(
+            (self.orientation_toggle, 'value'),
+            (self.content, 'show_marker')
+        )
+        widgets.jslink(
+            (self.poly_alpha_slider, 'value'),
+            (self.content, 'poly_alpha')
+        )
 
-        btn_grp = widgets.HBox(
+        view_cam_grp = widgets.HBox(
             [self.reset_btn, axis_btn_grp, self.orientation_toggle],
             layout=widgets.Layout(
                 padding='6px'
             ))
 
         self.on_displayed(self._viewer_displayed)
-        super(Viewer, self).__init__(children=[self.content, btn_grp, color_pick_grp])
+        super(Viewer, self).__init__(children=[
+            self.content, view_cam_grp, view_props_grp
+        ])
 
