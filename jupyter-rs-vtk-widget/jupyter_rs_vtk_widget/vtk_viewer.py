@@ -22,7 +22,7 @@ class VTK(widgets.DOMWidget):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
-    bg_color = widgets.Color('#fffaed').tag(sync=True)
+    bg_color = widgets.Color('#ffffff').tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
@@ -45,7 +45,7 @@ class VTK(widgets.DOMWidget):
         #self.send({'type': 'refresh'})
         pass
 
-    def __init__(self, title='', bg_color='#fffaed', data=None, inset=False):
+    def __init__(self, title='', bg_color='#ffffff', data=None, inset=False):
         self.model_data = {} if data is None else data
         self.title = title
         self.bg_color = bg_color

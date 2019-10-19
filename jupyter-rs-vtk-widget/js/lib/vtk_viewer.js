@@ -28,13 +28,21 @@ function indexArray(size) {
 //vv to radia class? vv//
 function toPolyData(json) {
     let colors = [];
+    //rsdbg('lc', json.lines.colors);
     for (var i = 0; i < json.lines.colors.length; i++) {
-      colors.push(Math.floor(255 * json.lines.colors[i]));
-      //colors.push(1.0);
+        let j = i % 3;
+        colors.push(Math.floor(255 * json.lines.colors[i]));
+        if (j === 2) {
+            colors.push(255);
+        }
     }
+    //rsdbg('pc', json.polygons.colors);
     for (var i = 0; i < json.polygons.colors.length; i++) {
-      colors.push(Math.floor(255 * json.polygons.colors[i]));
-      //colors.push(1.0);
+        let j = i % 3;
+        colors.push(Math.floor(255 * json.polygons.colors[i]));
+        if (j === 2) {
+            colors.push(255);
+        }
     }
 
     let polys = [];
@@ -75,7 +83,7 @@ function toPolyData(json) {
     pd.getPolys().setData(polys);
 
     pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
-        numberOfComponents: 3,  //4 for opacity
+        numberOfComponents: 4,  //3 for rgb, 4 for rgba
         values: colors,
         dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
     }));
@@ -83,6 +91,60 @@ function toPolyData(json) {
     return pd;
 }
 //^^ to raida class? ^^//
+
+
+function toArrows(json) {
+    let colors = [];
+    for (let i = 0; i < json.lines.colors.length; i += 3) {
+        let c = [];
+        c.push(Math.floor(255 * json.lines.colors[i]));
+        c.push(Math.floor(255 * json.lines.colors[i + 1]));
+        c.push(Math.floor(255 * json.lines.colors[i + 2]));
+        colors.push(c);
+    }
+
+
+    let arrows = [];
+    let origins = [];
+    let l = 0;
+    for (let i = 0; i < json.lines.lengths.length; i++) {
+        let len = json.lines.lengths[i];
+        for (var j = 0; j < len - 1; j++) {
+            let k = i + j + l;
+            origins.push([json.lines.vertices[k], json.lines.vertices[k + 1], json.lines.vertices[k + 2]])
+            let dx = json.lines.vertices[k + 3] - json.lines.vertices[k];
+            let dy = json.lines.vertices[k + 4] - json.lines.vertices[k + 1];
+            let dz = json.lines.vertices[k + 5] - json.lines.vertices[k + 2];
+            var h = Math.hypot(dx, dy, dz);
+            h = h > 0 ? h : 1.0;
+            arrows.push(
+                vtk.Filters.Sources.vtkArrowSource.newInstance({
+                    tipResolution: 10,
+                    tipRadius: 0.1,
+                    tipLength: 0.35,
+                    shaftResolution: 10,
+                    shaftRadius: 0.03,
+                    direction: [dx / h, dy / h, dz / h]
+                })
+            );
+        }
+        l += 3 * len;
+    }
+    for (let i = 0; i < arrows.length; ++i) {
+        let s = arrows[i];
+        let a = vtk.Rendering.Core.vtkActor.newInstance();
+        let m = vtk.Rendering.Core.vtkMapper.newInstance();
+        m.setInputConnection(s.getOutputPort());
+        a.setMapper(m);
+    }
+
+    return {
+        arrows: arrows,
+        colors: colors,
+        origins: origins
+    };
+}
+
 
 // Custom Model. Custom widgets models must at least provide default values
 // for model attributes, including
@@ -164,7 +226,7 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     refresh: function(o) {
 
-        //rsdbg(this.model.get('title'), 'REFRESH');
+        let v = this;
         if (! this.fsRenderer) {
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 container: $(this.el).find('.vtk-content')[0],
@@ -188,6 +250,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         this.removeActors();
+
         let sceneData = this.model.get('model_data');
         if ($.isEmptyObject(sceneData)) {
             rslog('No data');
@@ -200,9 +263,25 @@ var VTKView = widgets.DOMWidgetView.extend({
         var actor = vtk.Rendering.Core.vtkActor.newInstance();
         mapper.setInputData(pData);
         actor.setMapper(mapper);
-
         actor.getProperty().setEdgeVisibility(true);
         this.fsRenderer.getRenderer().addActor(actor);
+
+
+/*
+        let arrrowObj = toArrows(sceneData);
+        let arrows = arrrowObj.arrows;
+        let colors = arrrowObj.colors;
+        arrows.forEach(function (s, s_idx) {
+            let m = vtk.Rendering.Core.vtkMapper.newInstance();
+            m.setInputConnection(s.getOutputPort());
+            let a = vtk.Rendering.Core.vtkActor.newInstance({
+                mapper: m
+            });
+            a.getProperty().setColor(colors[s_idx]);
+            a.setPosition(arrrowObj.origins[s_idx]);
+            v.fsRenderer.getRenderer().addActor(a);
+        });
+*/
         this.resetView();
     },
 
@@ -265,6 +344,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         let r = this.fsRenderer.getRenderer();
         r.getActors().forEach(function(actor) {
             actor.getProperty().setEdgeVisibility(v.model.get('show_edges'));
+            let l = actor.getMapper().getInputData().getLines();
         });
         this.fsRenderer.getRenderWindow().render();
     },
