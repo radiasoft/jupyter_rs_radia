@@ -7,7 +7,7 @@ let controls = require('@jupyter-widgets/controls');
 let rsdbg = console.log.bind(console);
 let rslog = console.log.bind(console);
 
-var template = [
+let template = [
     '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
         '<div class="viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div style="margin: 1em;">',
@@ -16,6 +16,62 @@ var template = [
     '</div>'
 ].join('');
 
+// used to create array of arrows (or other objects) for vector fields
+function getVectFormula(directions, colors) {
+
+    return {
+        getArrays: function(inputDataSets) {
+            return {
+                input: [
+                    {
+                        location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.COORDINATE,
+                    }
+                ],
+                output: [
+                    {
+                        location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.POINT,
+                        name: 'orientation',
+                        dataType: 'Float32Array',
+                        numberOfComponents: 3,
+                    },
+                    // use unsigned char array ('Uint8Array') to use our own colors by default
+                    // (instead of the mapper's built-in lookup table)
+                    {
+                        location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.POINT,
+                        name: 'magnitude',
+                        dataType: 'Uint8Array',
+                        attribute: vtk.Common.DataModel.vtkDataSetAttributes.AttributeTypes.SCALARS,
+                        numberOfComponents: 3,  //4,
+                    },
+                ],
+            }
+        },
+        evaluate: function (arraysIn, arraysOut) {
+            let coords = arraysIn.map(function (d) {
+                return d.getData();
+            })[0];
+            let o = arraysOut.map(function (d) {
+                return d.getData();
+            });
+            let orientation = o[0];
+            let magnitude = o[1];
+
+            for (let i = 0; i < coords.length / 3; i += 1) {
+                for (let j = 0; j < 3; ++j) {
+                    const k = 3 * i + j;
+                    orientation[k] = directions[k];
+                    magnitude[k] = Math.floor(255.0 * colors[k]);
+                }
+                //magnitude[3 * i + 3] = 255;
+            }
+
+            // Mark the output vtkDataArray as modified?
+            arraysOut.forEach(function (x) {
+                x.modified();
+            });
+        },
+    };
+}
 
 function indexArray(size) {
     var res = [];
@@ -25,53 +81,44 @@ function indexArray(size) {
     return res;
 }
 
-//vv to radia class? vv//
 function toPolyData(json) {
     let colors = [];
-    //rsdbg('lc', json.lines.colors);
-    for (var i = 0; i < json.lines.colors.length; i++) {
-        let j = i % 3;
-        colors.push(Math.floor(255 * json.lines.colors[i]));
-        if (j === 2) {
-            colors.push(255);
+
+    ['lines', 'polygons'].forEach(function (o) {
+        for (let i = 0; i < json[o].colors.length; i++) {
+            let j = i % 3;
+            colors.push(Math.floor(255 * json[o].colors[i]));
+            if (j === 2) {
+                colors.push(255);
+            }
         }
-    }
-    //rsdbg('pc', json.polygons.colors);
-    for (var i = 0; i < json.polygons.colors.length; i++) {
-        let j = i % 3;
-        colors.push(Math.floor(255 * json.polygons.colors[i]));
-        if (j === 2) {
-            colors.push(255);
-        }
-    }
+    });
 
     let polys = [];
-    var polyIdx = 0;
+    let polyIdx = 0;
     let polyInds = indexArray(json.polygons.vertices.length / 3);
-    for (var i = 0; i < json.polygons.lengths.length; i++) {
-        var len = json.polygons.lengths[i];
+    for (let i = 0; i < json.polygons.lengths.length; i++) {
+        let len = json.polygons.lengths[i];
         polys.push(len);
         for (var j = 0; j < len; j++) {
-            polys.push(polyInds[polyIdx]);
-            polyIdx++;
+            polys.push(polyInds[polyIdx++]);
         }
     }
     polys = new window.Uint32Array(polys);
 
     let points = json.polygons.vertices;
     let lineVertOffset = points.length / 3;
-    for (var i = 0; i < json.lines.vertices.length; i++) {
+    for (let i = 0; i < json.lines.vertices.length; i++) {
         points.push(json.lines.vertices[i]);
     }
     let lines = [];
-    var lineIdx = 0;
+    let lineIdx = 0;
     let lineInds = indexArray(json.lines.vertices.length / 3);
-    for (var i = 0; i < json.lines.lengths.length; i++) {
-        var len = json.lines.lengths[i];
+    for (let i = 0; i < json.lines.lengths.length; i++) {
+        let len = json.lines.lengths[i];
         lines.push(len);
-        for (var j = 0; j < len; j++) {
-            lines.push(lineInds[lineIdx] + lineVertOffset);
-            lineIdx++;
+        for (let j = 0; j < len; j++) {
+            lines.push(lineInds[lineIdx++] + lineVertOffset);
         }
     }
     lines = new window.Uint32Array(lines);
@@ -83,68 +130,38 @@ function toPolyData(json) {
     pd.getPolys().setData(polys);
 
     pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
-        numberOfComponents: 4,  //3 for rgb, 4 for rgba
+        numberOfComponents: 4,
         values: colors,
         dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
     }));
 
+    pd.buildCells();
     return pd;
 }
-//^^ to raida class? ^^//
 
-
-function toArrows(json) {
+function vectorsToPolyData(json) {
     let colors = [];
-    for (let i = 0; i < json.lines.colors.length; i += 3) {
-        let c = [];
-        c.push(Math.floor(255 * json.lines.colors[i]));
-        c.push(Math.floor(255 * json.lines.colors[i + 1]));
-        c.push(Math.floor(255 * json.lines.colors[i + 2]));
-        colors.push(c);
-    }
-
-
-    let arrows = [];
-    let origins = [];
-    let l = 0;
-    for (let i = 0; i < json.lines.lengths.length; i++) {
-        let len = json.lines.lengths[i];
-        for (var j = 0; j < len - 1; j++) {
-            let k = i + j + l;
-            origins.push([json.lines.vertices[k], json.lines.vertices[k + 1], json.lines.vertices[k + 2]])
-            let dx = json.lines.vertices[k + 3] - json.lines.vertices[k];
-            let dy = json.lines.vertices[k + 4] - json.lines.vertices[k + 1];
-            let dz = json.lines.vertices[k + 5] - json.lines.vertices[k + 2];
-            var h = Math.hypot(dx, dy, dz);
-            h = h > 0 ? h : 1.0;
-            arrows.push(
-                vtk.Filters.Sources.vtkArrowSource.newInstance({
-                    tipResolution: 10,
-                    tipRadius: 0.1,
-                    tipLength: 0.35,
-                    shaftResolution: 10,
-                    shaftRadius: 0.03,
-                    direction: [dx / h, dy / h, dz / h]
-                })
-            );
+    for (let i = 0; i < json.vectors.colors.length; i++) {
+        let j = i % 3;
+        colors.push(Math.floor(255 * json.vectors.colors[i]));
+        if (j === 2) {
+            colors.push(255);
         }
-        l += 3 * len;
-    }
-    for (let i = 0; i < arrows.length; ++i) {
-        let s = arrows[i];
-        let a = vtk.Rendering.Core.vtkActor.newInstance();
-        let m = vtk.Rendering.Core.vtkMapper.newInstance();
-        m.setInputConnection(s.getOutputPort());
-        a.setMapper(m);
     }
 
-    return {
-        arrows: arrows,
-        colors: colors,
-        origins: origins
-    };
+    let points = new window.Float32Array(json.vectors.vertices);
+    let pd = vtk.Common.DataModel.vtkPolyData.newInstance();
+    pd.getPoints().setData(points, 3);
+
+    pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
+        numberOfComponents: 4,
+        values: colors,
+        dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
+    }));
+
+    pd.buildCells();
+    return pd;
 }
-
 
 // Custom Model. Custom widgets models must at least provide default values
 // for model attributes, including
@@ -183,13 +200,6 @@ var VTKView = widgets.DOMWidgetView.extend({
     fsRenderer: null,
     isLoaded: false,
     orientationMarker: null,
-    viewPropHandlers:  {
-        title: this.setTitle,
-        bg_color: this.setBgColor,
-        show_marker: this.setMarkerVisible,
-        show_edges: this.setEdgesVisible,
-        poly_alpha: this.setPolyAlpha,
-    },
 
     addViewPort: function() {
 
@@ -259,29 +269,39 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         let pData = toPolyData(sceneData);
-        var mapper = vtk.Rendering.Core.vtkMapper.newInstance();
-        var actor = vtk.Rendering.Core.vtkActor.newInstance();
+        let mapper = vtk.Rendering.Core.vtkMapper.newInstance();
         mapper.setInputData(pData);
+        let actor = vtk.Rendering.Core.vtkActor.newInstance();
         actor.setMapper(mapper);
         actor.getProperty().setEdgeVisibility(true);
         this.fsRenderer.getRenderer().addActor(actor);
 
+        if (sceneData.vectors && sceneData.vectors.vertices.length) {
+            let vData = vectorsToPolyData(sceneData);
+            let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
+            vectorCalc.setFormula(getVectFormula(sceneData.vectors.directions, sceneData.vectors.colors));
+            vectorCalc.setInputData(vData);
 
-/*
-        let arrrowObj = toArrows(sceneData);
-        let arrows = arrrowObj.arrows;
-        let colors = arrrowObj.colors;
-        arrows.forEach(function (s, s_idx) {
-            let m = vtk.Rendering.Core.vtkMapper.newInstance();
-            m.setInputConnection(s.getOutputPort());
-            let a = vtk.Rendering.Core.vtkActor.newInstance({
-                mapper: m
-            });
-            a.getProperty().setColor(colors[s_idx]);
-            a.setPosition(arrrowObj.origins[s_idx]);
-            v.fsRenderer.getRenderer().addActor(a);
-        });
-*/
+            let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
+            mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
+
+            let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
+            mapper.setInputConnection(s.getOutputPort(), 1);
+            mapper.setOrientationArray('orientation');
+
+            // this scales by a constant - the default is to use scalar data
+            //TODO(mvk): set based on bounds size
+            rsdbg('bounds', mapper.getBounds());
+            mapper.setScaleFactor(8.0);
+            mapper.setScaleModeToScaleByConstant();
+            mapper.setColorModeToDefault();
+
+            let actor = vtk.Rendering.Core.vtkActor.newInstance();
+            actor.setMapper(mapper);
+            actor.getProperty().setEdgeVisibility(false);
+            this.fsRenderer.getRenderer().addActor(actor);
+        }
+
         this.resetView();
     },
 
@@ -294,15 +314,11 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     render: function() {
         this.model.on('change:model_data', this.refresh, this);
-
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
         this.model.on('change:show_marker', this.setMarkerVisible, this);
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
-        //for (let prop in this.viewPropHandlers) {
-        //    this.model.on('change:' + prop, this.viewPropHandlers[prop], this);
-        //}
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
@@ -369,10 +385,6 @@ var VTKView = widgets.DOMWidgetView.extend({
     setTitle: function() {
         $(this.el).find('.viewer-title').text(this.model.get('title'));
     },
-
-    setViewProperty(prop) {
-
-    }
 
 });
 

@@ -1,15 +1,10 @@
+from __future__ import absolute_import, division, print_function
+
 import ipywidgets as widgets
 import traitlets
 
+from jupyter_rs_vtk_widget import rs_utils
 from traitlets import Any, Bool, Float, Dict, Instance, List, Unicode
-
-# helper functions
-# send a message to the front end to print to js console
-def rsdebug(widget, msg):
-    widget.send({
-        'type': 'debug',
-        'msg': 'KERNEL: ' + msg
-    })
 
 
 @widgets.register
@@ -41,7 +36,7 @@ class VTK(widgets.DOMWidget):
         )
 
     def _vtk_displayed(self, o):
-        #rsdebug(self, 'VTK ready')
+        #rs_utils.rsdebug(self, 'VTK ready')
         #self.send({'type': 'refresh'})
         pass
 
@@ -85,7 +80,7 @@ class Viewer(widgets.VBox):
         return widgets.Layout(align_self='stretch')
 
     def _handle_change(self, change):
-        rsdebug('{}'.format(change))
+        rs_utils.rsdebug('{}'.format(change))
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -101,6 +96,7 @@ class Viewer(widgets.VBox):
     # of the screen
     def _set_axis(self, b):
         a = b.description[0]
+        # maps (0, 1) to (-1, 1)
         d = 1 - 2 * Viewer._dirs.index(b.description[1])
         self.content.send({
             'type': 'axis',
@@ -112,6 +108,7 @@ class Viewer(widgets.VBox):
 
     def _set_axis_btn_desc(self, axis):
         d = self.axis_btns[axis]['dir']
+        # maps (-1, 1) to (0, 1)
         self.axis_btns[axis]['button'].description = axis + Viewer._dirs[int((1 - d) / 2)]
 
     def _viewer_displayed(self, o):
