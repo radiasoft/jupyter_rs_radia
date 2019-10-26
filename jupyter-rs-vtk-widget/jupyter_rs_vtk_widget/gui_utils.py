@@ -8,12 +8,7 @@ def _colors_from_string(s):
     return list(map(lambda x: int(x, 16), re.findall('.{6}', s)))
 
 
-
 COLOR_MAP = {
-    'grayscale':
-        ('333333'
-         'ffffff'
-        ),
     'afmhot':
         ('0000000200000400000600000800000a00000c00000e0000100000120000140000160000'
          '1800001a00001c00001e00002000002200002400002600002800002a00002c00002e0000'
@@ -61,6 +56,14 @@ COLOR_MAP = {
          'd85646d75445d65244d55042d44e41d24b40d1493fd0473dcf453ccd423bcc403acb3e38'
          'ca3b37c83836c73635c53334c43032c32e31c12b30c0282fbe242ebd1f2dbb1b2cba162b'
          'b8122ab70d28b50927b40426'
+        ),
+    'grayscale':
+        ('333333'
+         'ffffff'
+        ),
+    'hue':
+        ('000000',
+         'ffffff'
         ),
     'jet':
         ('00008000008400008900008d00009200009600009b00009f0000a40000a80000ad0000b2'
@@ -118,7 +121,7 @@ def color_maps():
 
 
 def default_color_map():
-    return 'viridis'
+    return 'coolwarm'
 
 
 # interpolate each component to num_colors if the color map has fewer values
@@ -147,8 +150,8 @@ def new_gl_object():
                 'vertices': []
             },
             'vectors': {
-                'colors': [],
                 'directions': [],
+                'magnitudes': [],
                 'vertices': []
             },
     }

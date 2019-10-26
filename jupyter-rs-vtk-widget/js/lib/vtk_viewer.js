@@ -1,11 +1,13 @@
 let _ = require('lodash');
 let $ = require('jquery');
 require('vtk.js');
-let widgets = require('@jupyter-widgets/base');
 let controls = require('@jupyter-widgets/controls');
+let guiUtils = require('./gui_utils');
+let widgets = require('@jupyter-widgets/base');
+let rsUtils = require('./rs_utils');
 
-let rsdbg = console.log.bind(console);
-let rslog = console.log.bind(console);
+const MAIN_ACTOR = 'main';
+const VECTOR_ACTOR = 'vector';
 
 let template = [
     '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
@@ -13,11 +15,43 @@ let template = [
         '<div style="margin: 1em;">',
             '<div class="vtk-content"></div>',
         '</div>',
-    '</div>'
+    '</div>',
+    // this to move to radia viewer
+    '<div class="vector-field-color-map" style="height: 32px;"></div>',
+    '<div class="vector-field-color-map-axis" style="height: 32px;">',
+        '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
+            '<span>0.0</span>',
+            '<span>0.2</span>',
+            '<span>0.4</span>',
+            '<span>0.6</span>',
+            '<span>0.8</span>',
+            '<span>1.0</span>',
+        '</div>',
+    '</div>',
 ].join('');
 
 // used to create array of arrows (or other objects) for vector fields
-function getVectFormula(directions, colors) {
+// change to use magnitudes and color locally
+function getVectFormula(vectors, colorMapName) {
+
+    // can we cache these?
+    const cmap = guiUtils.getColorMap(colorMapName);
+    const norms = rsUtils.normalize(vectors.magnitudes);
+
+    let logMags = vectors.magnitudes.map(function (n) {
+        return Math.log(n);
+    });
+
+    // get log values back into the original range, so that the extremes have the same
+    // size as a linear scale
+    let minLogMag = Math.min.apply(null, logMags);
+    let maxLogMag = Math.max.apply(null, logMags);
+    let minMag = Math.min.apply(null, vectors.magnitudes);
+    let maxMag = Math.max.apply(null, vectors.magnitudes);
+
+    logMags = logMags.map(function (n) {
+        return minMag + (n - minLogMag) * (maxMag - minMag) / (maxLogMag - minLogMag);
+    });
 
     return {
         getArrays: function(inputDataSets) {
@@ -34,6 +68,18 @@ function getVectFormula(directions, colors) {
                         dataType: 'Float32Array',
                         numberOfComponents: 3,
                     },
+                    {
+                        location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.POINT,
+                        name: 'linScale',
+                        dataType: 'Float32Array',
+                        numberOfComponents: 3,
+                    },
+                    {
+                        location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.POINT,
+                        name: 'logScale',
+                        dataType: 'Float32Array',
+                        numberOfComponents: 3,
+                    },
                     // use unsigned char array ('Uint8Array') to use our own colors by default
                     // (instead of the mapper's built-in lookup table)
                     {
@@ -41,7 +87,7 @@ function getVectFormula(directions, colors) {
                         name: 'magnitude',
                         dataType: 'Uint8Array',
                         attribute: vtk.Common.DataModel.vtkDataSetAttributes.AttributeTypes.SCALARS,
-                        numberOfComponents: 3,  //4,
+                        numberOfComponents: 3,
                     },
                 ],
             }
@@ -53,16 +99,28 @@ function getVectFormula(directions, colors) {
             let o = arraysOut.map(function (d) {
                 return d.getData();
             });
+            // note these arrays already have the correct length, so we need to set elements, not append
             let orientation = o[0];
-            let magnitude = o[1];
+            let linScale = o[1];
+            let logScale = o[2];
+            let magnitude = o[3];
 
             for (let i = 0; i < coords.length / 3; i += 1) {
-                for (let j = 0; j < 3; ++j) {
+                let cIdx  = Math.floor(norms[i] * (cmap.length - 1));
+                let c = guiUtils.rgbFromColor(cmap[cIdx], 1.0);
+                // scale arrow length (object-local x-direction) only
+                // this can stretch/squish the arrowhead though so the actor may have to adjust the ratio
+                linScale[3 * i] = vectors.magnitudes[i];
+                linScale[3 * i + 1] = 1.0;
+                linScale[3 * i + 2] = 1.0;
+                logScale[3 * i] = logMags[i];
+                logScale[3 * i + 1] = 1.0;
+                logScale[3 * i + 2] = 1.0;
+               for (let j = 0; j < 3; ++j) {
                     const k = 3 * i + j;
-                    orientation[k] = directions[k];
-                    magnitude[k] = Math.floor(255.0 * colors[k]);
+                    orientation[k] = vectors.directions[k];
+                    magnitude[k] = c[j];
                 }
-                //magnitude[3 * i + 3] = 255;
             }
 
             // Mark the output vtkDataArray as modified?
@@ -81,7 +139,7 @@ function indexArray(size) {
     return res;
 }
 
-function toPolyData(json) {
+function objToPolyData(json) {
     let colors = [];
 
     ['lines', 'polygons'].forEach(function (o) {
@@ -140,26 +198,10 @@ function toPolyData(json) {
 }
 
 function vectorsToPolyData(json) {
-    let colors = [];
-    for (let i = 0; i < json.vectors.colors.length; i++) {
-        let j = i % 3;
-        colors.push(Math.floor(255 * json.vectors.colors[i]));
-        if (j === 2) {
-            colors.push(255);
-        }
-    }
-
+    let cm = json.vectors.colorMap;
     let points = new window.Float32Array(json.vectors.vertices);
     let pd = vtk.Common.DataModel.vtkPolyData.newInstance();
     pd.getPoints().setData(points, 3);
-
-    pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
-        numberOfComponents: 4,
-        values: colors,
-        dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
-    }));
-
-    pd.buildCells();
     return pd;
 }
 
@@ -197,9 +239,20 @@ var VTKModel = widgets.DOMWidgetModel.extend({
 // Custom View. Renders the widget model.
 var VTKView = widgets.DOMWidgetView.extend({
 
+    actors: {},
     fsRenderer: null,
     isLoaded: false,
     orientationMarker: null,
+
+
+    addActor: function(name, actor) {
+        if (! this.fsRenderer) {
+            rsUtils.rslog('No renderer');
+            return;
+        }
+        this.actors[name] = actor;
+        this.fsRenderer.getRenderer().addActor(actor);
+    },
 
     addViewPort: function() {
 
@@ -209,17 +262,21 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     },
 
+    getActor: function(name) {
+        return this.actors[name];
+    },
+
     handleCustomMessages: function(msg) {
         if (msg.type == 'axis') {
             this.setAxis(msg.axis, msg.dir);
         }
 
         if (msg.type === 'debug') {
-            rsdbg(msg.msg);
+            rsUtils.rsdbg(msg.msg);
         }
 
         if (msg.type === 'refresh') {
-            rsdbg('msg rfrs');
+            rsUtils.rsdbg('msg rfrs');
             //this.refresh();
         }
 
@@ -260,26 +317,27 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         this.removeActors();
+        $(this.el).find('.vector-field-color-map').css('display', 'none');
 
         let sceneData = this.model.get('model_data');
         if ($.isEmptyObject(sceneData)) {
-            rslog('No data');
+            rsUtils.rslog('No data');
             this.fsRenderer.getRenderWindow().render();
             return;
         }
 
-        let pData = toPolyData(sceneData);
+        let pData = objToPolyData(sceneData);
         let mapper = vtk.Rendering.Core.vtkMapper.newInstance();
         mapper.setInputData(pData);
         let actor = vtk.Rendering.Core.vtkActor.newInstance();
         actor.setMapper(mapper);
         actor.getProperty().setEdgeVisibility(true);
-        this.fsRenderer.getRenderer().addActor(actor);
+        this.addActor(MAIN_ACTOR, actor);
 
         if (sceneData.vectors && sceneData.vectors.vertices.length) {
             let vData = vectorsToPolyData(sceneData);
             let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
-            vectorCalc.setFormula(getVectFormula(sceneData.vectors.directions, sceneData.vectors.colors));
+            vectorCalc.setFormula(getVectFormula(sceneData.vectors, this.model.get('field_color_map_name')));
             vectorCalc.setInputData(vData);
 
             let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
@@ -288,10 +346,11 @@ var VTKView = widgets.DOMWidgetView.extend({
             let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
             mapper.setInputConnection(s.getOutputPort(), 1);
             mapper.setOrientationArray('orientation');
+            //mapper.setScaleArray('linScale');
 
             // this scales by a constant - the default is to use scalar data
             //TODO(mvk): set based on bounds size
-            rsdbg('bounds', mapper.getBounds());
+            //rsUtils.rsdbg('bounds', mapper.getBounds());
             mapper.setScaleFactor(8.0);
             mapper.setScaleModeToScaleByConstant();
             mapper.setColorModeToDefault();
@@ -299,7 +358,24 @@ var VTKView = widgets.DOMWidgetView.extend({
             let actor = vtk.Rendering.Core.vtkActor.newInstance();
             actor.setMapper(mapper);
             actor.getProperty().setEdgeVisibility(false);
-            this.fsRenderer.getRenderer().addActor(actor);
+            actor.getProperty().setLighting(false);
+            this.addActor(VECTOR_ACTOR, actor);
+            $(this.el).find('.vector-field-color-map').css('display', 'block');
+
+            //TODO(mvk): real axis with tick marks, labels, etc.
+            let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
+            let numTicks = fieldTicks.length;
+            if (numTicks >= 2) {
+                let minV = Math.min.apply(null, sceneData.vectors.magnitudes);
+                let maxV = Math.max.apply(null, sceneData.vectors.magnitudes);
+                fieldTicks[0].textContent = ('' + minV).substr(0, 4);
+                fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
+                let dv = (maxV - minV) / (numTicks - 1);
+                for (let i = 1; i < numTicks - 1; ++i) {
+                    fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
+                }
+            }
+
         }
 
         this.resetView();
@@ -310,18 +386,25 @@ var VTKView = widgets.DOMWidgetView.extend({
         r.getActors().forEach(function(actor) {
             r.removeActor(actor);
         });
+        this.actors = {};
     },
 
     render: function() {
+        //let c = document.cookie;
+        //rsUtils.rsdbg('cookies', c);
         this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:bg_color', this.setBgColor, this);
+        this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
         this.model.on('change:show_marker', this.setMarkerVisible, this);
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
+        this.model.on('change:vector_scaling', this.setFieldScaling, this);
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
+            this.model.set('field_color_maps', guiUtils.getColorMaps());
+            this.setFieldColorMapScale();
             this.isLoaded = true;
             this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
         }
@@ -365,6 +448,44 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
+    setFieldColorMap: function() {
+        let mapName = this.model.get('field_color_map_name');
+        this.getActor(VECTOR_ACTOR)
+            .getMapper().getInputConnection(0).filter
+            .setFormula(getVectFormula(this.model.get('model_data').vectors, mapName));
+        this.setFieldColorMapScale();
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setFieldColorMapScale: function() {
+        let mapName = this.model.get('field_color_map_name');
+        let g = guiUtils.getColorMap(mapName, null, '#');
+        $(this.el).find('.vector-field-color-map')
+            .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
+    },
+
+    setFieldScaling: function() {
+        let vs = this.model.get('vector_scaling');
+        let mapper = this.getActor(VECTOR_ACTOR).getMapper();
+        //rsUtils.rsdbg('bounds', mapper.getBounds());
+        if (vs === 'Uniform') {
+            // use bounds
+            mapper.setScaleFactor(8.0);
+            mapper.setScaleModeToScaleByConstant();
+        }
+        if (vs === 'Linear') {
+            mapper.setScaleFactor(8.0);
+            mapper.setScaleArray('linScale');
+            mapper.setScaleModeToScaleByComponents();
+        }
+        if (vs === 'Log') {
+            mapper.setScaleFactor(8.0);
+            mapper.setScaleArray('logScale');
+            mapper.setScaleModeToScaleByComponents();
+        }
+        this.fsRenderer.getRenderWindow().render();
+    },
+
     setMarkerVisible: function() {
         this.orientationMarker.setEnabled(this.model.get('show_marker'));
         this.fsRenderer.getRenderWindow().render();
@@ -404,7 +525,7 @@ var ViewerView = controls.VBoxView.extend({
 
     handleCustomMessages: function(msg) {
         if (msg.type === 'debug') {
-            rsdbg(msg.msg);
+            rsUtils.rsdbg(msg.msg);
         }
     },
 

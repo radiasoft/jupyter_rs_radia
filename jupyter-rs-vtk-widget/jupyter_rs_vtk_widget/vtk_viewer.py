@@ -3,8 +3,9 @@ from __future__ import absolute_import, division, print_function
 import ipywidgets as widgets
 import traitlets
 
+from jupyter_rs_vtk_widget import gui_utils
 from jupyter_rs_vtk_widget import rs_utils
-from traitlets import Any, Bool, Float, Dict, Instance, List, Unicode
+from traitlets import Any, Bool, Dict, Float, Instance, Integer, List, Unicode
 
 
 @widgets.register
@@ -18,11 +19,16 @@ class VTK(widgets.DOMWidget):
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
     bg_color = widgets.Color('#ffffff').tag(sync=True)
+    # siupport more than 1 field?
+    field_color_map_name = Unicode(gui_utils.default_color_map()).tag(sync=True)
+    field_color_maps = List(list(gui_utils.color_maps())).tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
+    vector_scaling = Unicode('Uniform').tag(sync=True)
+    vector_scaling_types = List(['Uniform', 'Linear', 'Log']).tag(sync=True)
 
     def set_title(self, t):
         self.title = t
@@ -80,7 +86,7 @@ class Viewer(widgets.VBox):
         return widgets.Layout(align_self='stretch')
 
     def _handle_change(self, change):
-        rs_utils.rsdebug('{}'.format(change))
+        rs_utils.rsdebug(self, '{}'.format(change))
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -110,6 +116,12 @@ class Viewer(widgets.VBox):
         d = self.axis_btns[axis]['dir']
         # maps (-1, 1) to (0, 1)
         self.axis_btns[axis]['button'].description = axis + Viewer._dirs[int((1 - d) / 2)]
+
+    def _set_field_color_map(self, d):
+        self.content.field_color_map_name = d['new']
+
+    def _set_field_scaling(self, d):
+        self.content.vector_scaling = d['new']
 
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
@@ -147,13 +159,40 @@ class Viewer(widgets.VBox):
             }
         )
 
+        # default layout has fixed width which takes up too much space
         self.bg_color_pick = widgets.ColorPicker(
             concise=True,
+            layout={'width': 'max-content'},
             value=self.content.bg_color
         )
+        # self.bg_color_pick.observe(self._handle_change, names='value')
         # separate label to avoid text truncation
         color_pick_grp = widgets.HBox(
             [widgets.Label('Background color'), self.bg_color_pick]
+        )
+
+        # to be populated by the client? how?
+        # this is radia-specific and should move there
+        self.field_color_map = widgets.Dropdown(
+            layout={'width': 'max-content'},
+            options=gui_utils.color_maps(),
+            value=gui_utils.default_color_map()
+        )
+        # the value of a dropdown is not syncable!  We'll have to work around it
+        self.field_color_map.observe(self._set_field_color_map, names='value')
+        field_map_grp = widgets.HBox(
+            [widgets.Label('Field Color Map'), self.field_color_map]
+        )
+
+        self.field_scaling = widgets.Dropdown(
+            layout={'width': 'max-content'},
+            options=['Uniform', 'Linear', 'Log'],
+            value='Uniform'
+        )
+        # the value of a dropdown is not syncable!  We'll have to work around it
+        self.field_scaling.observe(self._set_field_scaling, names='value')
+        field_scaling_grp = widgets.HBox(
+            [widgets.Label('Field Scaling'), self.field_scaling]
         )
 
         self.poly_alpha_slider = widgets.FloatSlider(
@@ -162,7 +201,7 @@ class Viewer(widgets.VBox):
         )
 
         view_props_grp = widgets.HBox(
-            [color_pick_grp, self.poly_alpha_slider, self.edge_toggle]
+            [color_pick_grp, field_map_grp, field_scaling_grp, self.poly_alpha_slider, self.edge_toggle]
         )
 
         # links the values of two widgets
@@ -170,14 +209,17 @@ class Viewer(widgets.VBox):
             (self.bg_color_pick, 'value'),
             (self.content, 'bg_color')
         )
+
         widgets.jslink(
             (self.edge_toggle, 'value'),
             (self.content, 'show_edges')
         )
+
         widgets.jslink(
             (self.orientation_toggle, 'value'),
             (self.content, 'show_marker')
         )
+
         widgets.jslink(
             (self.poly_alpha_slider, 'value'),
             (self.content, 'poly_alpha')

@@ -50,12 +50,9 @@ class RadiaGeomMgr():
     def add_geom(self, geom_name, geom):
         self._geoms[geom_name] = geom
 
-    def vector_field_to_data(self, name, color_map=gui_utils.default_color_map(),
-                             include_geom=True):
+    def vector_field_to_data(self, name, include_geom=True):
         # format is [[[px, py, pz], [vx, vy, vx]], ...]
         # convert to webGL object
-        cm = gui_utils.get_color_map(color_map)
-        num_colors = len(cm)
         g = self.get_geom(name)
         pv_arr = rad.ObjM(g)
 
@@ -68,28 +65,16 @@ class RadiaGeomMgr():
             n = linalg.norm(v)
             v_max = max(v_max, n)
             v_min = min(v_min, n)
-            #nv = (p + 10. * np.array(v) / (n if n > 0 else 1.)).tolist()
-            #nv = (p + np.array(v) / (n if n > 0 else 1.)).tolist()
             nv = (np.array(v) / (n if n > 0 else 1.)).tolist()
-            #data['lines']['vertices'].extend(p)
-            #data['lines']['vertices'].extend(nv)
-            #data['lines']['lengths'].append(2)
             data['vectors']['vertices'].extend(p)
             data['vectors']['directions'].extend(nv)
-
-        v_range = v_max - v_min
-        v_range = v_range if v_range > 0 else 1.
-        for i in range(len(pv_arr)):
-            v = pv_arr[i][1]
-            v_normed = (linalg.norm(v) - v_min) / v_range
-            c_index = math.floor(v_normed * (num_colors - 1))
-            c = cm[c_index]
-            r, g, b = gui_utils.rgb_from_color(c)
-            #data['lines']['colors'].extend([r, g, b])
-            data['vectors']['colors'].extend([r, g, b])
+            data['vectors']['magnitudes'].append(n)
 
         if include_geom:
             g_d = self.geom_to_data(name)
+            # temp color set - will move to client
+            for c_idx, c in enumerate(g_d['lines']['colors']):
+                g_d['lines']['colors'][c_idx] = 0.85
             data['lines']['vertices'].extend(g_d['lines']['vertices'])
             data['lines']['lengths'].extend(g_d['lines']['lengths'])
             data['lines']['colors'].extend(g_d['lines']['colors'])
