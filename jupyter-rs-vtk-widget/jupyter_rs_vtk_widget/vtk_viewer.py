@@ -19,16 +19,14 @@ class VTK(widgets.DOMWidget):
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
     bg_color = widgets.Color('#ffffff').tag(sync=True)
-    # siupport more than 1 field?
-    field_color_map_name = Unicode(gui_utils.default_color_map()).tag(sync=True)
-    field_color_maps = List(list(gui_utils.color_maps())).tag(sync=True)
+    # support more than 1 field?
+    field_color_map_name = Unicode('').tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
-    vector_scaling = Unicode('Uniform').tag(sync=True)
-    vector_scaling_types = List(['Uniform', 'Linear', 'Log']).tag(sync=True)
+    vector_scaling = Unicode('').tag(sync=True)
 
     def set_title(self, t):
         self.title = t
@@ -43,7 +41,6 @@ class VTK(widgets.DOMWidget):
 
     def _vtk_displayed(self, o):
         #rs_utils.rsdebug(self, 'VTK ready')
-        #self.send({'type': 'refresh'})
         pass
 
     def __init__(self, title='', bg_color='#ffffff', data=None, inset=False):
@@ -75,6 +72,30 @@ class Viewer(widgets.VBox):
     _axes = ['X', 'Y', 'Z']
     # "into the screen", "out of the screen"
     _dirs = [u'\u2299', u'\u29bb']
+
+    external_props = Dict(default_value={}).tag(sync=True)
+    external_prop_map = {
+        'field_color_maps': {
+            'obj': 'field_color_map_list',
+            'attr': 'options'
+        },
+        'field_color_map_name': {
+            'obj': 'field_color_map_list',
+            'attr': 'value'
+        },
+        'vector_scaling_types': {
+            'obj': 'vector_scaling_list',
+            'attr': 'options'
+        },
+        'vector_scaling': {
+            'obj': 'vector_scaling_list',
+            'attr': 'value'
+        },
+    }
+
+    # support more than 1 field?
+    field_color_maps = List(default_value=list()).tag(sync=True)
+    vector_scaling_types = List(default_value=list()).tag(sync=True)
 
     def set_data(self, data):
         # keep a local reference to the data for handlers
@@ -120,13 +141,20 @@ class Viewer(widgets.VBox):
     def _set_field_color_map(self, d):
         self.content.field_color_map_name = d['new']
 
-    def _set_field_scaling(self, d):
+    def _set_external_props(self, d):
+        self.external_props = d['new']
+        for pn in self.external_prop_map:
+            p = self.external_prop_map[pn]
+            setattr(getattr(self, p['obj']), p['attr'], self.external_props[pn])
+
+    def _set_vector_scaling(self, d):
         self.content.vector_scaling = d['new']
 
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
         # but we need the widget to be ready first
         self.content.model_data = self.model_data
+        #rs_utils.rsdebug(self, 'VIEWER ready')
         pass
 
     def __init__(self, data=None):
@@ -165,34 +193,30 @@ class Viewer(widgets.VBox):
             layout={'width': 'max-content'},
             value=self.content.bg_color
         )
-        # self.bg_color_pick.observe(self._handle_change, names='value')
         # separate label to avoid text truncation
         color_pick_grp = widgets.HBox(
             [widgets.Label('Background color'), self.bg_color_pick]
         )
 
-        # to be populated by the client? how?
+        # to be populated by the client
         # this is radia-specific and should move there
-        self.field_color_map = widgets.Dropdown(
+        self.field_color_map_list = widgets.Dropdown(
             layout={'width': 'max-content'},
-            options=gui_utils.color_maps(),
-            value=gui_utils.default_color_map()
-        )
-        # the value of a dropdown is not syncable!  We'll have to work around it
-        self.field_color_map.observe(self._set_field_color_map, names='value')
-        field_map_grp = widgets.HBox(
-            [widgets.Label('Field Color Map'), self.field_color_map]
         )
 
-        self.field_scaling = widgets.Dropdown(
-            layout={'width': 'max-content'},
-            options=['Uniform', 'Linear', 'Log'],
-            value='Uniform'
+        # the options/value of a dropdown are not syncable!  We'll work around it
+        self.field_color_map_list.observe(self._set_field_color_map, names='value')
+        field_map_grp = widgets.HBox(
+            [widgets.Label('Field Color Map'), self.field_color_map_list]
         )
-        # the value of a dropdown is not syncable!  We'll have to work around it
-        self.field_scaling.observe(self._set_field_scaling, names='value')
-        field_scaling_grp = widgets.HBox(
-            [widgets.Label('Field Scaling'), self.field_scaling]
+
+        self.vector_scaling_list = widgets.Dropdown(
+            layout={'width': 'max-content'},
+        )
+
+        self.vector_scaling_list.observe(self._set_vector_scaling, names='value')
+        vector_scaling_grp = widgets.HBox(
+            [widgets.Label('Field Scaling'), self.vector_scaling_list]
         )
 
         self.poly_alpha_slider = widgets.FloatSlider(
@@ -201,7 +225,8 @@ class Viewer(widgets.VBox):
         )
 
         view_props_grp = widgets.HBox(
-            [color_pick_grp, field_map_grp, field_scaling_grp, self.poly_alpha_slider, self.edge_toggle]
+            [color_pick_grp, field_map_grp, vector_scaling_grp, self.poly_alpha_slider,
+             self.edge_toggle]
         )
 
         # links the values of two widgets
@@ -231,8 +256,14 @@ class Viewer(widgets.VBox):
                 padding='6px'
             ))
 
+        #self.out = widgets.Output()
         self.on_displayed(self._viewer_displayed)
+
+        # observe lists to be set as dropdown items
+        self.observe(self._set_external_props, names='external_props')
+        #self.observe(self._handle_change, type=traitlets.All)
         super(Viewer, self).__init__(children=[
-            self.content, view_cam_grp, view_props_grp
+            self.content, view_cam_grp, view_props_grp,
+            #self.out
         ])
 
