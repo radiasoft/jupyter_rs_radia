@@ -1,10 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
 import ipywidgets as widgets
-import math
 import numpy as np
 import radia as rad
-import re
 import sys
 
 from jupyter_rs_vtk_widget import gui_utils
@@ -15,7 +13,7 @@ from traitlets import Any, Dict, Instance, List, Unicode
 
 
 @widgets.register
-class RadiaViewer(widgets.VBox):
+class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     """Radia interface"""
     _view_name = Unicode('RadiaViewerView').tag(sync=True)
     _model_name = Unicode('RadiaViewerModel').tag(sync=True)
@@ -35,13 +33,14 @@ class RadiaViewer(widgets.VBox):
         self.field_color_map_select = widgets.Dropdown(options=gui_utils.color_maps())
 
         # may need to be viewport?
-        self.component_viewer = vtk_viewer.VTK()
-        comp_box = widgets.HBox([self.component_viewer], layout=widgets.Layout(
-            height='10%',
-            align_self = 'stretch'
-        ))
+        #self.component_viewer = vtk_viewer.VTK()
+        #comp_box = widgets.HBox([self.component_viewer], layout=widgets.Layout(
+        #    height='10%',
+        #    align_self = 'stretch'
+        #))
         super(RadiaViewer, self).__init__(children=[
-            self.main_viewer, comp_box
+            self.main_viewer,
+            #comp_box
         ])
 
 class RadiaGeomMgr():
@@ -70,7 +69,7 @@ class RadiaGeomMgr():
             data['vectors']['directions'].extend(nv)
             data['vectors']['magnitudes'].append(n)
 
-        if include_geom:
+        if True: #include_geom:
             g_d = self.geom_to_data(name)
             # temp color set - will move to client
             for c_idx, c in enumerate(g_d['lines']['colors']):

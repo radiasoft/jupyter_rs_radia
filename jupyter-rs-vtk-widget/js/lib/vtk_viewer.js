@@ -109,8 +109,8 @@ function getVectFormula(vectors, colorMapName) {
             });
             // note these arrays already have the correct length, so we need to set elements, not append
             let orientation = o[getVectOutIndex(ORIENTATION_ARRAY)];
-            let linScale = o[getVectOutIndex(LINEAR_SCALE_ARRAY)];
-            let logScale = o[getVectOutIndex(LOG_SCALE_ARRAY)];
+            let linScale = o[getVectOutIndex(LINEAR_SCALE_ARRAY)].fill(1.0);
+            let logScale = o[getVectOutIndex(LOG_SCALE_ARRAY)].fill(1.0);
             let scalars = o[getVectOutIndex(SCALAR_ARRAY)];
 
             for (let i = 0; i < coords.length / 3; i += 1) {
@@ -122,11 +122,7 @@ function getVectFormula(vectors, colorMapName) {
                 // scale arrow length (object-local x-direction) only
                 // this can stretch/squish the arrowhead though so the actor may have to adjust the ratio
                 linScale[3 * i] = vectors.magnitudes[i];
-                linScale[3 * i + 1] = 1.0;
-                linScale[3 * i + 2] = 1.0;
                 logScale[3 * i] = logMags[i];
-                logScale[3 * i + 1] = 1.0;
-                logScale[3 * i + 2] = 1.0;
                 for (let j = 0; j < 3; ++j) {
                     const k = 3 * i + j;
                     orientation[k] = vectors.directions[k];
@@ -206,6 +202,28 @@ function objToPolyData(json) {
 
     pd.buildCells();
     return pd;
+}
+
+function numLineColors(polyData) {
+    let l = polyData.getLines().getData();
+    let i = 0;
+    let j = 0;
+    while (i < l.length) {
+        i += (l[i] + 1);
+        ++j;
+    }
+    return j;
+}
+
+function numPolyColors(polyData) {
+    let l = polyData.getPolys().getData();
+    let i = 0;
+    let j = 0;
+    while (i < l.length) {
+        i += (l[i] + 1);
+        ++j;
+    }
+    return j;
 }
 
 function vectorsToPolyData(json) {
@@ -414,7 +432,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
-            this.setFieldColorMapScale();
+            //this.setFieldColorMapScale();
             this.isLoaded = true;
             this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
         }
@@ -450,29 +468,47 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setEdgesVisible: function() {
-        let v = this;
+        let doShow = this.model.get('show_edges');
         let r = this.fsRenderer.getRenderer();
         r.getActors().forEach(function(actor) {
-            actor.getProperty().setEdgeVisibility(v.model.get('show_edges'));
-            let l = actor.getMapper().getInputData().getLines();
+            actor.getProperty().setEdgeVisibility(doShow);
+            let c = actor.getMapper().getInputData().getCellData().getScalars();
+            if (! c) {
+                return;
+            }
+            let pData = actor.getMapper().getInputData();
+            let colors = c.getData();
+            let i = 0;
+            let n = c.getNumberOfComponents();
+            for (let j = 0; j < numLineColors(pData) && i < c.getNumberOfValues(); ++j) {
+                colors[i + 3] = 255 * doShow;
+                i += n;
+            }
         });
         this.fsRenderer.getRenderWindow().render();
     },
 
     setFieldColorMap: function() {
+        let actor = this.getActor(VECTOR_ACTOR);
+        if (! actor) {
+            return;
+        }
         let mapName = this.model.get('field_color_map_name');
         if (! mapName) {
             rsUtils.rslog('setFieldColorMap: No color map');
             return;
         }
-        this.getActor(VECTOR_ACTOR)
-            .getMapper().getInputConnection(0).filter
+        actor.getMapper().getInputConnection(0).filter
             .setFormula(getVectFormula(this.model.get('model_data').vectors, mapName));
         this.setFieldColorMapScale();
         this.fsRenderer.getRenderWindow().render();
     },
 
     setFieldColorMapScale: function() {
+        let actor = this.getActor(VECTOR_ACTOR);
+        if (! actor) {
+            return;
+        }
         let mapName = this.model.get('field_color_map_name');
         if (! mapName) {
             rsUtils.rslog('setFieldColorMapScale: No color map');
@@ -484,21 +520,23 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setFieldScaling: function() {
+        let actor = this.getActor(VECTOR_ACTOR);
+        if (! actor) {
+            return;
+        }
         let vs = this.model.get('vector_scaling');
-        let mapper = this.getActor(VECTOR_ACTOR).getMapper();
+        let mapper = actor.getMapper();
         //rsUtils.rsdbg('bounds', mapper.getBounds());
+        // use bounds
+        mapper.setScaleFactor(8.0);
         if (vs === 'Uniform') {
-            // use bounds
-            mapper.setScaleFactor(8.0);
             mapper.setScaleModeToScaleByConstant();
         }
         if (vs === 'Linear') {
-            mapper.setScaleFactor(8.0);
             mapper.setScaleArray(LINEAR_SCALE_ARRAY);
             mapper.setScaleModeToScaleByComponents();
         }
         if (vs === 'Log') {
-            mapper.setScaleFactor(8.0);
             mapper.setScaleArray(LOG_SCALE_ARRAY);
             mapper.setScaleModeToScaleByComponents();
         }

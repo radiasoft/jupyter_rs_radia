@@ -9,7 +9,7 @@ from traitlets import Any, Bool, Dict, Float, Instance, Integer, List, Unicode
 
 
 @widgets.register
-class VTK(widgets.DOMWidget):
+class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     """VTK content"""
     _view_name = Unicode('VTKView').tag(sync=True)
     _model_name = Unicode('VTKModel').tag(sync=True)
@@ -40,7 +40,7 @@ class VTK(widgets.DOMWidget):
         )
 
     def _vtk_displayed(self, o):
-        #rs_utils.rsdebug(self, 'VTK ready')
+        #self.rsdebug('VTK ready')
         pass
 
     def __init__(self, title='', bg_color='#ffffff', data=None, inset=False):
@@ -60,7 +60,7 @@ class VTK(widgets.DOMWidget):
 
 # Note we need to subclass VBox in the javascript as well
 @widgets.register
-class Viewer(widgets.VBox):
+class Viewer(widgets.VBox, rs_utils.RSDebugger):
     """VTK viewer - includes controls to manipulate the objects"""
     _model_name = Unicode('ViewerModel').tag(sync=True)
     _view_name = Unicode('ViewerView').tag(sync=True)
@@ -107,7 +107,7 @@ class Viewer(widgets.VBox):
         return widgets.Layout(align_self='stretch')
 
     def _handle_change(self, change):
-        rs_utils.rsdebug(self, '{}'.format(change))
+        self.rsdebug('{}'.format(change))
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -154,7 +154,7 @@ class Viewer(widgets.VBox):
         # if we have data, this will trigger the refresh on the front end
         # but we need the widget to be ready first
         self.content.model_data = self.model_data
-        #rs_utils.rsdebug(self, 'VIEWER ready')
+        #self.rsdebug('VIEWER ready')
         pass
 
     def __init__(self, data=None):
