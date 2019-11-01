@@ -12,8 +12,6 @@ const MAIN_ACTOR = 'main';
 const ORIENTATION_ARRAY = 'orientation';
 const SCALAR_ARRAY = 'scalars';
 const VECTOR_ACTOR = 'vector';
-const VTK_MODEL_CLASS = 'VTKModel';
-const VTK_VIEW_CLASS = 'VTKView';
 
 let template = [
     '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
@@ -78,7 +76,6 @@ function getVectFormula(vectors, colorMapName) {
 
     // can we cache these?
     const cmap = colorMapName ? guiUtils.getColorMap(colorMapName) : [];
-    //rsUtils.rsdbg('vect form cm', colorMapName, cmap);
     const norms = rsUtils.normalize(vectors.magnitudes);
 
     let logMags = vectors.magnitudes.map(function (n) {
@@ -138,12 +135,24 @@ function getVectFormula(vectors, colorMapName) {
     };
 }
 
-function indexArray(size) {
-    var res = [];
-    for (var i = 0; i < size; i++) {
-      res.push(i);
+function numLineColors(polyData) {
+    return numDataColors(polyData.getLines().getData());
+}
+
+function numPolyColors(polyData) {
+    return numDataColors(polyData.getPolys().getData());
+}
+
+// lines and poly data arrays look like:
+//    [<num vertices for obj 0>, <vertex 0, 0>, ...,]
+function numDataColors(data) {
+    let i = 0;
+    let j = 0;
+    while (i < data.length) {
+        i += (data[i] + 1);
+        ++j;
     }
-    return res;
+    return j;
 }
 
 function objToPolyData(json) {
@@ -161,7 +170,7 @@ function objToPolyData(json) {
 
     let polys = [];
     let polyIdx = 0;
-    let polyInds = indexArray(json.polygons.vertices.length / 3);
+    let polyInds = rsUtils.indexArray(json.polygons.vertices.length / 3);
     for (let i = 0; i < json.polygons.lengths.length; i++) {
         let len = json.polygons.lengths[i];
         polys.push(len);
@@ -178,7 +187,7 @@ function objToPolyData(json) {
     }
     let lines = [];
     let lineIdx = 0;
-    let lineInds = indexArray(json.lines.vertices.length / 3);
+    let lineInds = rsUtils.indexArray(json.lines.vertices.length / 3);
     for (let i = 0; i < json.lines.lengths.length; i++) {
         let len = json.lines.lengths[i];
         lines.push(len);
@@ -202,28 +211,6 @@ function objToPolyData(json) {
 
     pd.buildCells();
     return pd;
-}
-
-function numLineColors(polyData) {
-    let l = polyData.getLines().getData();
-    let i = 0;
-    let j = 0;
-    while (i < l.length) {
-        i += (l[i] + 1);
-        ++j;
-    }
-    return j;
-}
-
-function numPolyColors(polyData) {
-    let l = polyData.getPolys().getData();
-    let i = 0;
-    let j = 0;
-    while (i < l.length) {
-        i += (l[i] + 1);
-        ++j;
-    }
-    return j;
 }
 
 function vectorsToPolyData(json) {
@@ -264,19 +251,46 @@ var VTKModel = widgets.DOMWidgetModel.extend({
 // Custom View. Renders the widget model.
 var VTKView = widgets.DOMWidgetView.extend({
 
-    actors: {},
-    class: VTK_VIEW_CLASS,
+    actorInfo: {},
     fsRenderer: null,
     isLoaded: false,
     orientationMarker: null,
 
 
+    // stash the actor and associated info to avoid recalculation
     addActor: function(name, actor) {
         if (! this.fsRenderer) {
-            rsUtils.rslog('No renderer');
-            return;
+            // exception?
+            //rsUtils.rslog('No renderer');
+            throw new Error('No renderer');
+            //return;
         }
-        this.actors[name] = actor;
+        if (! actor.getMapper() || ! actor.getMapper().getInputData()) {
+            throw new Error('Actor ' + name + ' has no mapper or data');
+        }
+        //this.actors[name] = actor;
+        let pData = actor.getMapper().getInputData();
+        let info = {
+            actor: actor,
+            lineAlphaIndices: [],
+            numLineColors: numLineColors(pData),
+            numPolyColors: numPolyColors(pData),
+            pData: pData,
+            polyAlphaIndices: [],
+            scalars: pData.getCellData().getScalars(),
+        };
+        if (info.scalars) {
+            info.lineAlphaIndices = rsUtils.indexArray(info.numLineColors)
+                .map(function (i) {
+                    return 4 * i + 3;
+                });
+            info.polyAlphaIndices = rsUtils.indexArray(info.numPolyColors)
+                .map(function (i) {
+                    return 4 * (i + info.numLineColors) + 3;
+                });
+        }
+        this.actorInfo[name] = info;
+
         this.fsRenderer.getRenderer().addActor(actor);
     },
 
@@ -289,7 +303,11 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     getActor: function(name) {
-        return this.actors[name];
+        return (this.getActorInfo(name) || {}).actor;
+    },
+
+    getActorInfo: function(name) {
+        return this.actorInfo[name];
     },
 
     handleCustomMessages: function(msg) {
@@ -415,7 +433,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         r.getActors().forEach(function(actor) {
             r.removeActor(actor);
         });
-        this.actors = {};
+        this.actorInfo = {};
     },
 
     render: function() {
@@ -469,22 +487,22 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     setEdgesVisible: function() {
         let doShow = this.model.get('show_edges');
-        let r = this.fsRenderer.getRenderer();
-        r.getActors().forEach(function(actor) {
-            actor.getProperty().setEdgeVisibility(doShow);
-            let c = actor.getMapper().getInputData().getCellData().getScalars();
-            if (! c) {
-                return;
+        for (let name in this.actorInfo) {
+            let info = this.getActorInfo(name);
+            let s = info.scalars;
+            if (! s) {
+                continue;
             }
-            let pData = actor.getMapper().getInputData();
-            let colors = c.getData();
+            let colors = s.getData();
+            this.getActor(name).getProperty().setEdgeVisibility(doShow);
+            let nc = s.getNumberOfComponents();
             let i = 0;
-            let n = c.getNumberOfComponents();
-            for (let j = 0; j < numLineColors(pData) && i < c.getNumberOfValues(); ++j) {
-                colors[i + 3] = 255 * doShow;
-                i += n;
+            for (let j = 0; j < info.lineAlphaIndices.length && i < s.getNumberOfValues(); ++j) {
+                colors[info.lineAlphaIndices[j]] = 255 * doShow;
+                i += nc;
             }
-        });
+            info.pData.modified();
+        }
         this.fsRenderer.getRenderWindow().render();
     },
 
@@ -549,14 +567,24 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setPolyAlpha: function() {
-        let v = this;
-        let r = this.fsRenderer.getRenderer();
-        r.getActors().forEach(function(actor) {
-            //TODO(mvk): should only affect polygons, not entire actor
-            //let m = actor.getMapper();
-            //let p = m.getInputData();
-            actor.getProperty().setOpacity(v.model.get('poly_alpha'));
-        });
+        let alpha = Math.floor(255 * this.model.get('poly_alpha'));
+        for (let name in this.actorInfo) {
+            let info = this.getActorInfo(name);
+            let s = info.scalars;
+            if (! s) {
+                continue;
+            }
+            let colors = s.getData();
+            let nc = s.getNumberOfComponents();
+            let i = 0;
+            for (let j = 0; j < info.polyAlphaIndices.length && i < s.getNumberOfValues(); ++j) {
+                colors[info.polyAlphaIndices[j]] = alpha;
+                i += nc;
+            }
+            info.pData.modified();
+            //actor.getProperty().setOpacity(this.model.get('poly_alpha'));
+           // this.fsRenderer.getRenderWindow().render();
+        }
         this.fsRenderer.getRenderWindow().render();
     },
 

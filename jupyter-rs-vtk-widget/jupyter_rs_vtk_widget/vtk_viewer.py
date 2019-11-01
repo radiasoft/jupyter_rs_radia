@@ -101,6 +101,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         # keep a local reference to the data for handlers
         self.model_data = data
         self.content.model_data = data
+        self._update_layout()
 
     @traitlets.default('layout')
     def _default_layout(self):
@@ -108,6 +109,18 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
     def _handle_change(self, change):
         self.rsdebug('{}'.format(change))
+
+    def _has_data_type(self, type):
+        if self.model_data is None:
+            return False
+        return type in self.model_data and \
+            len(self.model_data[type]['vertices']) > 0
+
+    def _has_polys(self):
+        return self._has_data_type('polygons')
+
+    def _has_vectors(self):
+        return self._has_data_type('vectors')
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -150,12 +163,15 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def _set_vector_scaling(self, d):
         self.content.vector_scaling = d['new']
 
+    def _update_layout(self):
+        self.vector_grp.layout.display = None if self._has_vectors() else 'none'
+        self.poly_alpha_grp.layout.display = None if self._has_polys() else 'none'
+
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
         # but we need the widget to be ready first
-        self.content.model_data = self.model_data
+        self.set_data(self.model_data)
         #self.rsdebug('VIEWER ready')
-        pass
 
     def __init__(self, data=None):
         if data is None:
@@ -207,7 +223,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         # the options/value of a dropdown are not syncable!  We'll work around it
         self.field_color_map_list.observe(self._set_field_color_map, names='value')
         field_map_grp = widgets.HBox(
-            [widgets.Label('Field Color Map'), self.field_color_map_list]
+            [widgets.Label('Field Color Map'), self.field_color_map_list],
         )
 
         self.vector_scaling_list = widgets.Dropdown(
@@ -219,13 +235,17 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             [widgets.Label('Field Scaling'), self.vector_scaling_list]
         )
 
+        self.vector_grp = widgets.HBox([field_map_grp, vector_scaling_grp])
+
         self.poly_alpha_slider = widgets.FloatSlider(
-            description='Alpha', min=0.0, max=1.0, step=0.05,
-            value=self.content.poly_alpha
+            min=0.0, max=1.0, step=0.05, value=self.content.poly_alpha
+        )
+        self.poly_alpha_grp = widgets.HBox(
+            [widgets.Label('Surface Alpha'), self.poly_alpha_slider]
         )
 
         view_props_grp = widgets.HBox(
-            [color_pick_grp, field_map_grp, vector_scaling_grp, self.poly_alpha_slider,
+            [color_pick_grp, self.vector_grp, self.poly_alpha_grp,
              self.edge_toggle]
         )
 

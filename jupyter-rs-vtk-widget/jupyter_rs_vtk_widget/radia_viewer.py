@@ -80,11 +80,9 @@ class RadiaGeomMgr():
 
         return data
 
-
     def geom_to_data(self, name, axes=False):
         #TODO(mvk): if no color, get color from parent if any?
         return rad.ObjGeometry(self.get_geom(name), 'Axes->' + ('Yes' if axes else 'No'))
-
 
     def get_geom(self, name):
         return self._geoms[name]
