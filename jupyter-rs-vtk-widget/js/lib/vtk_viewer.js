@@ -67,7 +67,7 @@ function getVectOutIndex(name) {
             return vIdx;
         }
     }
-    throw 'No vector array named ' + name;
+    throw new Error('No vector array named ' + name);
 }
 
 // used to create array of arrows (or other objects) for vector fields

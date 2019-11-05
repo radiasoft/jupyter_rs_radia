@@ -11,7 +11,7 @@ function indexArray(size) {
 
 function linearlySpacedArray(start, stop, nsteps) {
    if (nsteps < 1) {
-       throw 'linearlySpacedArray: steps ' + nsteps + ' < 1';
+       throw new Error('linearlySpacedArray: steps ' + nsteps + ' < 1');
    }
    let delta = (stop - start) / (nsteps - 1);
    let res = indexArray(nsteps).map(function(d) {
@@ -20,7 +20,7 @@ function linearlySpacedArray(start, stop, nsteps) {
    res[res.length - 1] = stop;
 
    if (res.length != nsteps) {
-       throw 'linearlySpacedArray: steps ' + nsteps + ' != ' + res.length;
+       throw new Error('linearlySpacedArray: steps ' + nsteps + ' != ' + res.length);
    }
    return res;
 }
