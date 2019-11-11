@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import ipywidgets as widgets
-import numpy as np
+import numpy
 import radia as rad
 import sys
 
@@ -64,7 +64,7 @@ class RadiaGeomMgr():
             n = linalg.norm(v)
             v_max = max(v_max, n)
             v_min = min(v_min, n)
-            nv = (np.array(v) / (n if n > 0 else 1.)).tolist()
+            nv = (numpy.array(v) / (n if n > 0 else 1.)).tolist()
             data['vectors']['vertices'].extend(p)
             data['vectors']['directions'].extend(nv)
             data['vectors']['magnitudes'].append(n)
