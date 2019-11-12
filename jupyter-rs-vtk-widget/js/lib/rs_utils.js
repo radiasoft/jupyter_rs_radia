@@ -3,9 +3,7 @@ let rslog = console.log.bind(console);
 
 function indexArray(size) {
     var res = [];
-    for (var i = 0; i < size; i++) {
-      res.push(i);
-    }
+    for (var i = 0; i < size; res.push(i++)) {}
     return res;
 }
 

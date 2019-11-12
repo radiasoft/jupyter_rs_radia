@@ -103,6 +103,9 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         self.content.model_data = data
         self._update_layout()
 
+    def test(self):
+        self.set_data(gui_utils.get_test_obj())
+
     @traitlets.default('layout')
     def _default_layout(self):
         return widgets.Layout(align_self='stretch')
@@ -113,8 +116,14 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def _has_data_type(self, type):
         if self.model_data is None:
             return False
-        return type in self.model_data and \
-            len(self.model_data[type]['vertices']) > 0
+        for name in self.model_data:
+            d_arr = self.model_data[name]
+            for d in d_arr:
+                if type not in d or len(d[type]['vertices']) == 0:
+                    return False
+        return True
+        #return type in self.model_data and \
+        #    len(self.model_data[type]['vertices']) > 0
 
     def _has_polys(self):
         return self._has_data_type('polygons')

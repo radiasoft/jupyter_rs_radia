@@ -46,16 +46,59 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 class RadiaGeomMgr():
     """Manager for multiple geometries (Radia objects)"""
 
+    def _add_normals(self, geom):
+        norms = []
+        p_idx = 0
+        verts = numpy.array(geom['polygons']['vertices'])
+        #print('calc norms from {} pts'.format(len(verts)))
+        # normal for each vertex in each polygon - vertices can be in more than one
+        # note normals for a given poly are all the same
+
+        # normal for each polygon -
+        for l in geom['polygons']['lengths']:
+            v = numpy.reshape(verts[p_idx : p_idx + 3 * l], (l, 3))
+            vx = numpy.cross(v[2] - v[1], v[1] - v[0])
+            nv = linalg.norm(vx)
+            vx = vx / (nv if nv > 0 else 1)
+            norms.extend(vx)
+
+            #for i in range(l):
+                #i1 = i % l
+                #i2 = (i + 1) % l
+                #i3 = (i + 2) % l
+                #v1 = v[i2] - v[i1]
+                #v2 = v[i3] - v[i2]
+                #vx = numpy.cross(v2, v1)
+                #nv = linalg.norm(vx)
+                #vx = vx / (nv if nv > 0 else 1)
+                #norms.extend(vx)
+        #        #p_norms.append(vx / (nv if nv > 0 else 1))
+            p_idx += 3 * l
+
+        geom['polygons']['normals'] = norms
+        return geom
+
+    def _get_all_geom(self, geom):
+        g_arr = []
+        for g in rad.ObjCntStuf(geom):
+            if len(rad.ObjCntStuf(g)) > 0:
+                g_arr.extend(self._get_all_geom(g))
+            else:
+                g_arr.append(g)
+        return g_arr
+
     def add_geom(self, geom_name, geom):
         self._geoms[geom_name] = geom
 
-    def vector_field_to_data(self, name, include_geom=True):
+    def vector_field_to_data(self, name):
         # format is [[[px, py, pz], [vx, vy, vx]], ...]
         # convert to webGL object
         g = self.get_geom(name)
         pv_arr = rad.ObjM(g)
 
         data = gui_utils.new_gl_object()
+        data['vectors']['lengths'] = []
+        data['vectors']['colors'] = []
         v_max = 0.
         v_min = sys.float_info.max
         for i in range(len(pv_arr)):
@@ -69,20 +112,33 @@ class RadiaGeomMgr():
             data['vectors']['directions'].extend(nv)
             data['vectors']['magnitudes'].append(n)
 
-        if True: #include_geom:
-            g_d = self.geom_to_data(name)
-            # temp color set - will move to client
-            for c_idx, c in enumerate(g_d['lines']['colors']):
-                g_d['lines']['colors'][c_idx] = 0.85
-            data['lines']['vertices'].extend(g_d['lines']['vertices'])
-            data['lines']['lengths'].extend(g_d['lines']['lengths'])
-            data['lines']['colors'].extend(g_d['lines']['colors'])
+        g_d = self.geom_to_data(name, divide=False)
+        # temp color set - will move to client
+        for c_idx, c in enumerate(g_d['lines']['colors']):
+            g_d['lines']['colors'][c_idx] = 0.85
+        data['lines']['vertices'].extend(g_d['lines']['vertices'])
+        data['lines']['lengths'].extend(g_d['lines']['lengths'])
+        data['lines']['colors'].extend(g_d['lines']['colors'])
 
         return data
 
-    def geom_to_data(self, name, axes=False):
+    def geom_to_data(self, name, axes=False, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
-        return rad.ObjGeometry(self.get_geom(name), 'Axes->' + ('Yes' if axes else 'No'))
+        #TODO(mvk): if container, loop through children (non?)recursively -- we need
+        # separate actors for each object (we don't need to preserve parent-child
+        # relationships though (yet?))
+        geom = self.get_geom(name)
+        #print(rad.ObjDrwVTK(geom, 'Axes->No'))
+        if not divide:
+            return gui_utils.add_normals(rad.ObjDrwVTK(geom, 'Axes->No'))
+        d_arr = []
+        # g_d = rad.ObjDrwVTK(self.get_geom(name), 'Axes->' + ('Yes' if axes else 'No'))
+        for g in rad.ObjCntStuf(geom):
+        #for g in self._get_all_geom(geom):
+            d_arr.append(gui_utils.add_normals(rad.ObjDrwVTK(g, 'Axes->No')))
+            #d_arr.append(rad.ObjDrwVTK(g, 'Axes->No'))
+
+        return {name: d_arr}
 
     def get_geom(self, name):
         return self._geoms[name]

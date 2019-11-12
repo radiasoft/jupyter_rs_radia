@@ -6,9 +6,14 @@ let guiUtils = require('./gui_utils');
 let widgets = require('@jupyter-widgets/base');
 let rsUtils = require('./rs_utils');
 
+const TYPE_LINE = 1;
+const TYPE_POLY = 2;
+const TYPE_VECT = 4;
+const GL_TYPES = ['lines', 'polygons', 'vectors'];
+
+const GEOM_SURFACE_ACTOR = 'geomSurface';
 const LINEAR_SCALE_ARRAY = 'linScale';
 const LOG_SCALE_ARRAY = 'logScale';
-const MAIN_ACTOR = 'main';
 const ORIENTATION_ARRAY = 'orientation';
 const SCALAR_ARRAY = 'scalars';
 const VECTOR_ACTOR = 'vector';
@@ -127,12 +132,98 @@ function getVectFormula(vectors, colorMapName) {
                 }
             }
 
-            // Mark the output vtkDataArray as modified?
+            // Mark the output vtkDataArray as modified
             arraysOut.forEach(function (x) {
                 x.modified();
             });
         },
     };
+}
+
+// to be used by picker
+function getVectorMagnitude() {
+
+}
+
+// if a "line" has the same points as a polygon, associate the line index to that of the poly.
+// CellPickers seem to prioritize edges
+function mapLinesToPolys(polyData) {
+    let lines = polyData.getLines().getData();
+    let polys = polyData.getPolys().getData();
+    let points = polyData.getPoints().getData();
+    let map = {};
+    let i = 0;
+    let j = 0;
+    //rsUtils.rsdbg('map pts', points);
+    let lp = [];
+    while (i < lines.length) {
+        let inds = lines.slice(i + 1, i + lines[i] + 1);
+        let pts = [];
+        for (let k = 0; k < inds.length; ++k) {
+            let tdx = 3 * inds[k];
+            //rsUtils.rsdbg('line', j, 'tdx', tdx);
+            //pts.push(polyData.getPoints().getTuple(tdx));
+            pts.push(points.slice(tdx, tdx + 3));
+        }
+        //rsUtils.rsdbg('line', j, 'inds', inds, 'npts', lines[i], 'is pts', pts);
+        lp.push(pts);
+        i += (lines[i] + 1);
+        ++j;
+    }
+
+    i = 0;
+    j = 0;
+    let pp = [];
+    while (i < polys.length) {
+        let inds = polys.slice(i + 1, i + polys[i] + 1);
+        let pts = [];
+        for (let k = 0; k < inds.length; ++k) {
+            let tdx = 3 * inds[k];
+            pts.push(points.slice(tdx, tdx + 3));
+        }
+        pts.push(pts[0]);  // to cf with lines
+        //rsUtils.rsdbg('poly', j, 'is pts', pts);
+        pp.push(pts);
+        i += (polys[i] + 1);
+        ++j;
+    }
+
+    // loop over lines
+    for (let i = 0; i < lp.length; ++i) {
+        let lpts = lp[i];
+        // loop over polys
+        for (let j = 0; j < pp.length; ++j) {
+            //if (Object.values(map).indexOf(j) >= 0) {
+            //    continue;
+            //}
+            let ppts = pp[j];
+            if (lpts.length !== ppts.length) {
+                continue;
+            }
+            // loop over coord sets
+            let smatch = true;
+            for (let k = 0; k < lpts.length; ++k) {
+                let cmatch = true;
+                // loop over coords
+                for (let m = 0; m < 3; ++m) {
+                    cmatch = cmatch && lpts[k][m] === ppts[k][m];
+                    if (! cmatch) {
+                        break;
+                    }
+                }
+                smatch = smatch && cmatch;
+                if (! smatch) {
+                    break;
+                }
+            }
+            if (smatch) {
+                map[i] = j;
+                break;
+            }
+        }
+    }
+    //rsUtils.rsdbg('l -> p', map);
+    return map;
 }
 
 function numLineColors(polyData) {
@@ -155,53 +246,69 @@ function numDataColors(data) {
     return j;
 }
 
-function objToPolyData(json) {
+function objToPolyData(json, typeMask, addnorms) {
     let colors = [];
+    let points = [];
+    let tData = {};
 
-    ['lines', 'polygons'].forEach(function (o) {
-        for (let i = 0; i < json[o].colors.length; i++) {
-            let j = i % 3;
-            colors.push(Math.floor(255 * json[o].colors[i]));
-            if (j === 2) {
+    rsUtils.rsdbg('pd for', json);
+    if (! typeMask) {
+        typeMask = TYPE_LINE + TYPE_POLY + TYPE_VECT;
+    }
+    GL_TYPES.forEach(function (type, tIdx) {
+        if (! (Math.pow(2, tIdx) & typeMask)) {
+            rsUtils.rsdbg('ignoring data for type', type);
+            return;
+        }
+
+        //rsUtils.rsdbg('adding data for type', type);
+        let t = json[type];
+        if (! t) {
+            rsUtils.rsdbg('No data for requested type', type);
+            return;
+        }
+
+        // may not always be colors in the data
+        let c = t.colors || [];
+        for (let i = 0; i < c.length; i++) {
+            colors.push(Math.floor(255 * c[i]));
+            if (i % 3 === 2) {
                 colors.push(255);
             }
         }
+
+        let tArr = [];
+        let tOffset = points.length / 3;
+        for (let i = 0; i < t.vertices.length; i++) {
+            points.push(t.vertices[i]);
+        }
+        let tInd = 0;
+        let tInds = rsUtils.indexArray(t.vertices.length / 3);
+        for (let i = 0; i < t.lengths.length; i++) {
+            let len = t.lengths[i];
+            tArr.push(len);
+            for (let j = 0; j < len; j++) {
+                tArr.push(tInds[tInd++] + tOffset);
+            }
+        }
+        if (tArr.length) {
+            tData[type] = new window.Uint32Array(tArr);
+        }
+
     });
 
-    let polys = [];
-    let polyIdx = 0;
-    let polyInds = rsUtils.indexArray(json.polygons.vertices.length / 3);
-    for (let i = 0; i < json.polygons.lengths.length; i++) {
-        let len = json.polygons.lengths[i];
-        polys.push(len);
-        for (var j = 0; j < len; j++) {
-            polys.push(polyInds[polyIdx++]);
-        }
-    }
-    polys = new window.Uint32Array(polys);
-
-    let points = json.polygons.vertices;
-    let lineVertOffset = points.length / 3;
-    for (let i = 0; i < json.lines.vertices.length; i++) {
-        points.push(json.lines.vertices[i]);
-    }
-    let lines = [];
-    let lineIdx = 0;
-    let lineInds = rsUtils.indexArray(json.lines.vertices.length / 3);
-    for (let i = 0; i < json.lines.lengths.length; i++) {
-        let len = json.lines.lengths[i];
-        lines.push(len);
-        for (let j = 0; j < len; j++) {
-            lines.push(lineInds[lineIdx++] + lineVertOffset);
-        }
-    }
-    lines = new window.Uint32Array(lines);
     points = new window.Float32Array(points);
 
     let pd = vtk.Common.DataModel.vtkPolyData.newInstance();
     pd.getPoints().setData(points, 3);
-    pd.getLines().setData(lines);
-    pd.getPolys().setData(polys);
+
+    //rsUtils.rsdbg('setting polydata from', tData);
+    if (tData['lines']) {
+        pd.getLines().setData(tData['lines']);
+    }
+    if (tData['polygons']) {
+        pd.getPolys().setData(tData['polygons']);
+    }
 
     pd.getCellData().setScalars(vtk.Common.Core.vtkDataArray.newInstance({
         numberOfComponents: 4,
@@ -210,7 +317,46 @@ function objToPolyData(json) {
     }));
 
     pd.buildCells();
+
+    //rsUtils.rsdbg('before norms', pd.getCellData().getNormals().getData());
+    if (addnorms) {
+        let norms = new window.Float32Array(json.polygons.normals);
+        pd.getCellData().setNormals(
+            vtk.Common.Core.vtkDataArray.newInstance({
+                name: 'Normals',
+                values: norms,
+                numberOfComponents: 3,
+            })
+        );
+        if (pd.getCellData().getNormals()) {
+            rsUtils.rsdbg('norms', pd.getCellData().getNormals().getData(), 'pts', pd.getPoints().getData());
+        }
+    }
+
+
     return pd;
+}
+
+function objBounds(json) {
+
+    let mins = [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE];
+    let maxs = [-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE];
+
+    GL_TYPES.forEach(function (type) {
+        if (! json[type]) {
+            return;
+        }
+        let pts = json[type].vertices;
+        for (let j = 0; j < 3; ++j) {
+            let c = pts.filter(function (p, i) {
+                return i % 3 === j;
+            });
+            mins[j] =  Math.min(mins[j], Math.min.apply(null, c));
+            maxs[j] =  Math.max(maxs[j], Math.max.apply(null, c));
+        }
+    });
+
+    return [mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2]];
 }
 
 function vectorsToPolyData(json) {
@@ -255,10 +401,11 @@ var VTKView = widgets.DOMWidgetView.extend({
     fsRenderer: null,
     isLoaded: false,
     orientationMarker: null,
-
+    cPicker: null,
+    ptPicker: null,
 
     // stash the actor and associated info to avoid recalculation
-    addActor: function(name, actor) {
+    addActor: function(name, actor, pickable) {
         if (! this.fsRenderer) {
             // exception?
             //rsUtils.rslog('No renderer');
@@ -268,30 +415,39 @@ var VTKView = widgets.DOMWidgetView.extend({
         if (! actor.getMapper() || ! actor.getMapper().getInputData()) {
             throw new Error('Actor ' + name + ' has no mapper or data');
         }
-        //this.actors[name] = actor;
+
+        rsUtils.rsdbg('adding actor', name);
         let pData = actor.getMapper().getInputData();
+
         let info = {
             actor: actor,
-            lineAlphaIndices: [],
+            lineIndices: [],
+            linePolyMap: mapLinesToPolys(pData),
+            name: name,
             numLineColors: numLineColors(pData),
             numPolyColors: numPolyColors(pData),
             pData: pData,
-            polyAlphaIndices: [],
+            polyIndices: [],
             scalars: pData.getCellData().getScalars(),
         };
         if (info.scalars) {
-            info.lineAlphaIndices = rsUtils.indexArray(info.numLineColors)
+            info.lineIndices = rsUtils.indexArray(info.numLineColors)
                 .map(function (i) {
-                    return 4 * i + 3;
+                    return 4 * i;
                 });
-            info.polyAlphaIndices = rsUtils.indexArray(info.numPolyColors)
+            info.polyIndices = rsUtils.indexArray(info.numPolyColors)
                 .map(function (i) {
-                    return 4 * (i + info.numLineColors) + 3;
+                    return 4 * (i + info.numLineColors);
                 });
         }
+
         this.actorInfo[name] = info;
 
         this.fsRenderer.getRenderer().addActor(actor);
+        if (pickable) {
+            this.ptPicker.addPickList(actor);
+            this.cPicker.addPickList(actor);
+        }
     },
 
     addViewPort: function() {
@@ -308,6 +464,42 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     getActorInfo: function(name) {
         return this.actorInfo[name];
+    },
+
+    getActorInfoOfType: function(typeName) {
+        return Object.keys(this.actorInfo)
+            .filter(function (name) {
+            return name.startsWith(typeName);
+        })
+            .map(function (name) {
+                return view.getActorInfo(name);
+            })
+    },
+
+    getActorsOfType: function(typeName) {
+        return this.getActorInfoOfType(typeName).map(function (info) {
+            return info.actor;
+        });
+    },
+
+    getInfoForActor: function(actor) {
+        for (let n in this.actorInfo) {
+            if (this.getActor(n) === actor) {
+                return this.getActorInfo(n);
+            }
+        }
+    },
+
+    // color at
+    getPolyColorFor(name, pIdx) {
+        let info = this.getInfo(name);
+        let s = info.scalars;
+        if (! info.pData || ! s || pIdx >= info.numPolyColors) {
+            return null;
+        }
+        let colors = s.getData();
+        let c = colors.slice(info.numLineColors + pIdx, info.numLineColors + pIdx + 4);
+        return c;
     },
 
     handleCustomMessages: function(msg) {
@@ -339,7 +531,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     refresh: function(o) {
 
         //rsUtils.rsdbg('refresh');
-        let v = this;
+        const view = this;
         if (! this.fsRenderer) {
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 container: $(this.el).find('.vtk-content')[0],
@@ -362,6 +554,113 @@ var VTKView = widgets.DOMWidgetView.extend({
             this.setMarkerVisible();
         }
 
+        // need point picker for vector fields and cell picker for magnet objects
+        if (! this.ptPicker) {
+            this.ptPicker = vtk.Rendering.Core.vtkPointPicker.newInstance();
+            this.ptPicker.setPickFromList(1);
+            this.ptPicker.initializePickList();
+        }
+
+        if (! this.cPicker) {
+            this.cPicker = vtk.Rendering.Core.vtkCellPicker.newInstance();
+            this.cPicker.setTolerance(0);
+            //this.cPicker.setTolerance(10.0);
+            this.cPicker.setPickFromList(1);
+            this.cPicker.initializePickList();
+        }
+
+        this.fsRenderer.getRenderWindow().getInteractor().onLeftButtonPress(function (callData) {
+            let  r = view.fsRenderer.getRenderer();
+            if (r !== callData.pokedRenderer) {
+                return;
+            }
+
+            // ??
+            if (! callData.controlKey) {
+                return;
+            }
+
+            const pos = callData.position;
+            // change z?
+            const point = [pos.x, pos.y, 0.0];
+            let pres = view.ptPicker.pick(point, r);
+            let cres = view.cPicker.pick(point, r);
+            const pid = view.ptPicker.getPointId();
+            let cid = view.cPicker.getCellId();
+            //rsUtils.rsdbg('Picked pt', point);
+            //rsUtils.rsdbg('Picked pt at', pres, 'id', pid);
+            //rsUtils.rsdbg('Picked cell at', cres, 'cid', cid, view.cPicker.getPickedPositions());
+            //if (pid < 0) {
+            //    return;
+            //}
+
+            let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
+            if (! picker) {
+                rsUtils.rsdbg('Pick failed');
+                return;
+            }
+
+            let pas = picker.getActors();
+            //rsUtils.rsdbg('pas', pas);
+            for (let aIdx in pas) {
+                let actor = pas[aIdx];
+                let info = view.getInfoForActor(actor);
+                if (! info.pData) {
+                    // actor color?
+                    continue;
+                }
+
+                let pts = info.pData.getPoints();
+                // attach pick functions to actor info
+                //if (info.name === VECTOR_ACTOR) {
+                if (info.name.startsWith(VECTOR_ACTOR)) {
+                    let n = pts.getNumberOfComponents();
+                    let coords = pts.getData().slice(n * pid, n * (pid + 1));
+                    let f = actor.getMapper().getInputConnection(0).filter;
+                    let linArr = f.getOutputData().getPointData().getArrayByName(LINEAR_SCALE_ARRAY);
+                    if (! linArr) {
+                        continue;
+                    }
+                    let m = linArr.getData()[pid * linArr.getNumberOfComponents()];
+                    rsUtils.rsdbg('coords', coords, 'filter out val', m);
+                }
+                //if (info.name === GEOM_SURFACE_ACTOR) {
+                if (info.name.startsWith(GEOM_SURFACE_ACTOR)) {
+                    //rsUtils.rsdbg('main', actor);
+
+                    let colors = info.scalars.getData();
+                    //rsUtils.rsdbg('look up from colors', colors);
+                    let cells = info.pData.getCellData();
+                    let cellPts = info.pData.getCellPoints(cid);
+                    let ct = cellPts.cellType;
+                    if (info.linePolyMap[cid]) {
+                        rsUtils.rsdbg('using poly', info.linePolyMap[cid]);
+                        cid = info.linePolyMap[cid];
+                        ct = 9;  // use matching poly
+                    }
+                    //rsUtils.rsdbg('cells', cells, 'sc', cells.getScalars(), 'cpts', cellPts);
+                    //rsUtils.rsdbg('cell', cid, 'cpts', cellPts, 'cells', cells, cells.getScalars().getNumberOfTuples());
+                    // we picked a line cell, find a polygon
+                    //if (cellPts.cellType === vtk.Common.DataModel.vtkCell.VTK_LINE ||
+                    //    cellPts.cellType === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE) {
+                    //rsUtils.rsdbg('checking lif line', vtk.Common.DataModel.vtkCell.CellType.VTK_LINE, vtk.Common.DataModel.vtkCell.CellType.VTK_POLY_LINE);
+                    if (ct === 3 || ct === 4) {
+                        let n = info.pData.getLines().getNumberOfCells();
+                        let j = info.lineIndices[cid];
+                        //rsUtils.rsdbg('checking line', cid, 'of', n, info.lineIndices, j);
+                        rsUtils.rsdbg('line tup', cid, colors.slice(j, j + 4));
+                    }
+                    else {
+                        let n = info.pData.getPolys().getNumberOfCells();
+                        let j = info.polyIndices[cid];
+                        //rsUtils.rsdbg('checking poly', cid, 'of', n, info.polyIndices);
+                        rsUtils.rsdbg('poly tup', cid, colors.slice(j, j + 4));
+                    }
+                    //rsUtils.rsdbg('tup', cells.getScalars().getTuple(cid + info.numLineColors));
+                }
+            }
+        });
+
         this.removeActors();
         $(this.el).find('.vector-field-color-map').css('display', 'none');
 
@@ -372,59 +671,116 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
 
-        let pData = objToPolyData(sceneData);
-        let mapper = vtk.Rendering.Core.vtkMapper.newInstance();
-        mapper.setInputData(pData);
-        let actor = vtk.Rendering.Core.vtkActor.newInstance();
-        actor.setMapper(mapper);
-        actor.getProperty().setEdgeVisibility(true);
-        this.addActor(MAIN_ACTOR, actor);
+        //let pData = objToPolyData(sceneData);
+        // the data to include are specific to each case and should be settable
+        // pickable
+        rsUtils.rsdbg('looping', sceneData);
+        let totalBounds = [
+            Number.MAX_VALUE, -Number.MAX_VALUE,
+            Number.MAX_VALUE, -Number.MAX_VALUE,
+            Number.MAX_VALUE, -Number.MAX_VALUE
+        ];
+        for (let name in sceneData) {
+            let scenes = sceneData[name];
+            rsUtils.rsdbg('got data', scenes, 'for', name);
 
-        if (sceneData.vectors && sceneData.vectors.vertices.length) {
-            let vData = vectorsToPolyData(sceneData);
-            let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
-            vectorCalc.setFormula(getVectFormula(sceneData.vectors, this.model.get('field_color_map_name')));
-            vectorCalc.setInputData(vData);
+            for (let i = 0; i < scenes.length; ++i) {
 
-            let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
-            mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
+                let sceneDatum = scenes[i];
+                //let pData = objToPolyData(sceneData, TYPE_POLY | TYPE_LINE);
+                let bounds = objBounds(sceneDatum);
+                rsUtils.rsdbg('poly bounds', bounds);
+                let pData = objToPolyData(sceneDatum, TYPE_POLY | TYPE_LINE, true);
+                //rsUtils.rsdbg('norms', pData.getPointData().getNormals().getData());
+                //let pData = objToPolyData(sceneDatum, TYPE_POLY);
+                let mapper = vtk.Rendering.Core.vtkMapper.newInstance({
+                    static: true
+                });
+                mapper.setInputData(pData);
+                let actor = vtk.Rendering.Core.vtkActor.newInstance({
+                    mapper: mapper
+                });
+                this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pData.getNumberOfPolys() > 0);
+                //rsUtils.rsdbg(i, 'm bounds', mapper.getBounds());
+                rsUtils.rsdbg(i, 'a bounds', actor.getBounds());
 
-            let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
-            mapper.setInputConnection(s.getOutputPort(), 1);
-            mapper.setOrientationArray(ORIENTATION_ARRAY);
+                //if (sceneData.vectors && sceneData.vectors.vertices.length) {
+                if (sceneDatum.vectors && sceneDatum.vectors.vertices.length) {
+                    //let vData = vectorsToPolyData(sceneData);
+                    //let vData = objToPolyData(sceneData, TYPE_VECT);
+                    let vData = objToPolyData(sceneDatum, TYPE_VECT);
+                    let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
+                    //vectorCalc.setFormula(getVectFormula(sceneData.vectors, this.model.get('field_color_map_name')));
+                    vectorCalc.setFormula(getVectFormula(sceneDatum.vectors, this.model.get('field_color_map_name')));
+                    vectorCalc.setInputData(vData);
 
-            // this scales by a constant - the default is to use scalar data
-            //TODO(mvk): set based on bounds size
-            //rsUtils.rsdbg('bounds', mapper.getBounds());
-            mapper.setScaleFactor(8.0);
-            mapper.setScaleModeToScaleByConstant();
-            mapper.setColorModeToDefault();
+                    let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
+                    mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
 
-            let actor = vtk.Rendering.Core.vtkActor.newInstance();
-            actor.setMapper(mapper);
-            actor.getProperty().setEdgeVisibility(false);
-            actor.getProperty().setLighting(false);
-            this.addActor(VECTOR_ACTOR, actor);
-            //this.setFieldScaling();
+                    let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
+                    mapper.setInputConnection(s.getOutputPort(), 1);
+                    mapper.setOrientationArray(ORIENTATION_ARRAY);
 
-            $(this.el).find('.vector-field-color-map').css('display', 'block');
+                    // this scales by a constant - the default is to use scalar data
+                    //TODO(mvk): set based on bounds size
+                    mapper.setScaleFactor(8.0);
+                    mapper.setScaleModeToScaleByConstant();
+                    mapper.setColorModeToDefault();
 
-            //TODO(mvk): real axis with tick marks, labels, etc.
-            let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
-            let numTicks = fieldTicks.length;
-            if (numTicks >= 2) {
-                let minV = Math.min.apply(null, sceneData.vectors.magnitudes);
-                let maxV = Math.max.apply(null, sceneData.vectors.magnitudes);
-                fieldTicks[0].textContent = ('' + minV).substr(0, 4);
-                fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
-                let dv = (maxV - minV) / (numTicks - 1);
-                for (let i = 1; i < numTicks - 1; ++i) {
-                    fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
+                    let actor = vtk.Rendering.Core.vtkActor.newInstance({
+                        mapper: mapper
+                    });
+                    actor.getProperty().setLighting(false);
+                    this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
+
+                    $(this.el).find('.vector-field-color-map').css('display', 'block');
+
+                    //TODO(mvk): real axis with tick marks, labels, etc.
+                    let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
+                    let numTicks = fieldTicks.length;
+                    if (numTicks >= 2) {
+                        //let minV = Math.min.apply(null, sceneData.vectors.magnitudes);
+                        //let maxV = Math.max.apply(null, sceneData.vectors.magnitudes);
+                        let minV = Math.min.apply(null, sceneDatum.vectors.magnitudes);
+                        let maxV = Math.max.apply(null, sceneDatum.vectors.magnitudes);
+                        fieldTicks[0].textContent = ('' + minV).substr(0, 4);
+                        fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
+                        let dv = (maxV - minV) / (numTicks - 1);
+                        for (let i = 1; i < numTicks - 1; ++i) {
+                            fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
+                        }
+                    }
+                }
+                for(let j = 0; j < 3; ++j) {
+                    let k = 2 * j;
+                    totalBounds[k] = Math.min(totalBounds[k], bounds[k]);
+                    totalBounds[k + 1] = Math.max(totalBounds[k + 1], bounds[k + 1]);
                 }
             }
-
         }
-
+        // add an invisible bounding box
+        /*
+        let s = vtk.Filters.Sources.vtkCubeSource.newInstance({
+            xLength: 2 * Math.abs(totalBounds[1] - totalBounds[0]),
+            yLength: 2 * Math.abs(totalBounds[3] - totalBounds[2]),
+            zLength: 2 * Math.abs(totalBounds[5] - totalBounds[4]),
+            center: [
+                2 * (totalBounds[0] + (totalBounds[1] - totalBounds[0]) / 2.0),
+                2 * (totalBounds[2] + (totalBounds[3] - totalBounds[2]) / 2.0),
+                2 * (totalBounds[4] + (totalBounds[5] - totalBounds[4]) / 2.0)
+            ]
+        });
+        let m = vtk.Rendering.Core.vtkMapper.newInstance();
+        m.setInputConnection(s.getOutputPort());
+        let a = vtk.Rendering.Core.vtkActor.newInstance({
+            mapper: m
+        });
+        a.getProperty().setColor(1, 1, 1);
+        a.getProperty().setFrontfaceCulling(true);
+        a.getProperty().setLighting(false);
+        a.getProperty().setEdgeVisibility(true);
+        this.addActor('BOUNDS', a, false);
+         */
         this.resetView();
     },
 
@@ -461,6 +817,10 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.setCam([1, -0.4, 0], [0, 0, 1]);
     },
 
+    setAlpha: function() {
+
+    },
+
     // may have to get axis orientation from data?
     setAxis: function(axis, dir) {
         let camPos = axis === 'X' ? [dir, 0, 0] : (axis === 'Y' ? [0, dir, 0] : [0, 0, dir] );
@@ -491,14 +851,15 @@ var VTKView = widgets.DOMWidgetView.extend({
             let info = this.getActorInfo(name);
             let s = info.scalars;
             if (! s) {
+                this.getActor(name).getProperty().setEdgeVisibility(doShow);
                 continue;
             }
             let colors = s.getData();
             this.getActor(name).getProperty().setEdgeVisibility(doShow);
             let nc = s.getNumberOfComponents();
             let i = 0;
-            for (let j = 0; j < info.lineAlphaIndices.length && i < s.getNumberOfValues(); ++j) {
-                colors[info.lineAlphaIndices[j]] = 255 * doShow;
+            for (let j = 0; j < info.lineIndices.length && i < s.getNumberOfValues(); ++j) {
+                colors[info.lineIndices[j] + 3] = 255 * doShow;
                 i += nc;
             }
             info.pData.modified();
@@ -507,7 +868,8 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setFieldColorMap: function() {
-        let actor = this.getActor(VECTOR_ACTOR);
+        //let actor = this.getActor(VECTOR_ACTOR);
+        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
@@ -523,7 +885,8 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setFieldColorMapScale: function() {
-        let actor = this.getActor(VECTOR_ACTOR);
+        //let actor = this.getActor(VECTOR_ACTOR);
+        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
@@ -538,7 +901,8 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setFieldScaling: function() {
-        let actor = this.getActor(VECTOR_ACTOR);
+        //let actor = this.getActor(VECTOR_ACTOR);
+        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
@@ -577,13 +941,13 @@ var VTKView = widgets.DOMWidgetView.extend({
             let colors = s.getData();
             let nc = s.getNumberOfComponents();
             let i = 0;
-            for (let j = 0; j < info.polyAlphaIndices.length && i < s.getNumberOfValues(); ++j) {
-                colors[info.polyAlphaIndices[j]] = alpha;
+            for (let j = 0; j < info.polyIndices.length && i < s.getNumberOfValues(); ++j) {
+                colors[info.polyIndices[j] + 3] = alpha;
                 i += nc;
             }
+            // required to get render() to show changes
             info.pData.modified();
             //actor.getProperty().setOpacity(this.model.get('poly_alpha'));
-           // this.fsRenderer.getRenderWindow().render();
         }
         this.fsRenderer.getRenderWindow().render();
     },
