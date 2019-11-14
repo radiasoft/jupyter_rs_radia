@@ -46,38 +46,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 class RadiaGeomMgr():
     """Manager for multiple geometries (Radia objects)"""
 
-    def _add_normals(self, geom):
-        norms = []
-        p_idx = 0
-        verts = numpy.array(geom['polygons']['vertices'])
-        #print('calc norms from {} pts'.format(len(verts)))
-        # normal for each vertex in each polygon - vertices can be in more than one
-        # note normals for a given poly are all the same
-
-        # normal for each polygon -
-        for l in geom['polygons']['lengths']:
-            v = numpy.reshape(verts[p_idx : p_idx + 3 * l], (l, 3))
-            vx = numpy.cross(v[2] - v[1], v[1] - v[0])
-            nv = linalg.norm(vx)
-            vx = vx / (nv if nv > 0 else 1)
-            norms.extend(vx)
-
-            #for i in range(l):
-                #i1 = i % l
-                #i2 = (i + 1) % l
-                #i3 = (i + 2) % l
-                #v1 = v[i2] - v[i1]
-                #v2 = v[i3] - v[i2]
-                #vx = numpy.cross(v2, v1)
-                #nv = linalg.norm(vx)
-                #vx = vx / (nv if nv > 0 else 1)
-                #norms.extend(vx)
-        #        #p_norms.append(vx / (nv if nv > 0 else 1))
-            p_idx += 3 * l
-
-        geom['polygons']['normals'] = norms
-        return geom
-
     def _get_all_geom(self, geom):
         g_arr = []
         for g in rad.ObjCntStuf(geom):
@@ -90,15 +58,16 @@ class RadiaGeomMgr():
     def add_geom(self, geom_name, geom):
         self._geoms[geom_name] = geom
 
-    def vector_field_to_data(self, name):
+    def magnetization_to_data(self, name):
+        return self.vector_field_to_data(name, rad.ObjM(self.get_geom(name)))
+
+    def vector_field_to_data(self, name, pv_arr):
         # format is [[[px, py, pz], [vx, vy, vx]], ...]
         # convert to webGL object
-        g = self.get_geom(name)
-        pv_arr = rad.ObjM(g)
 
-        data = gui_utils.new_gl_object()
-        data['vectors']['lengths'] = []
-        data['vectors']['colors'] = []
+        v_data = gui_utils.new_gl_object()
+        v_data.vectors.lengths = []
+        v_data.vectors.colors = []
         v_max = 0.
         v_min = sys.float_info.max
         for i in range(len(pv_arr)):
@@ -108,19 +77,19 @@ class RadiaGeomMgr():
             v_max = max(v_max, n)
             v_min = min(v_min, n)
             nv = (numpy.array(v) / (n if n > 0 else 1.)).tolist()
-            data['vectors']['vertices'].extend(p)
-            data['vectors']['directions'].extend(nv)
-            data['vectors']['magnitudes'].append(n)
+            v_data.vectors.vertices.extend(p)
+            v_data.vectors.directions.extend(nv)
+            v_data.vectors.magnitudes.append(n)
 
-        g_d = self.geom_to_data(name, divide=False)
+        l_data = self.geom_to_data(name, divide=False)
         # temp color set - will move to client
-        for c_idx, c in enumerate(g_d['lines']['colors']):
-            g_d['lines']['colors'][c_idx] = 0.85
-        data['lines']['vertices'].extend(g_d['lines']['vertices'])
-        data['lines']['lengths'].extend(g_d['lines']['lengths'])
-        data['lines']['colors'].extend(g_d['lines']['colors'])
+        for c_idx, c in enumerate(l_data.lines.colors):
+            l_data.lines.colors[c_idx] = 0.85
+        v_data.lines.vertices.extend(l_data.lines.vertices)
+        v_data.lines.lengths.extend(l_data.lines.lengths)
+        v_data.lines.colors.extend(l_data.lines.colors)
 
-        return data
+        return v_data
 
     def geom_to_data(self, name, axes=False, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
@@ -128,7 +97,6 @@ class RadiaGeomMgr():
         # separate actors for each object (we don't need to preserve parent-child
         # relationships though (yet?))
         geom = self.get_geom(name)
-        #print(rad.ObjDrwVTK(geom, 'Axes->No'))
         if not divide:
             return gui_utils.add_normals(rad.ObjDrwVTK(geom, 'Axes->No'))
         d_arr = []

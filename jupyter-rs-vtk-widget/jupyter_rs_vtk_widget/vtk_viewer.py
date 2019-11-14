@@ -97,6 +97,9 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     field_color_maps = List(default_value=list()).tag(sync=True)
     vector_scaling_types = List(default_value=list()).tag(sync=True)
 
+    def display(self):
+        return self
+
     def set_data(self, data):
         # keep a local reference to the data for handlers
         self.model_data = data
