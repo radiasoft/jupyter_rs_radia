@@ -4,54 +4,43 @@ require('vtk.js');
 
 let rsUtils = require('./rs_utils');
 
-//const GL_TYPES = ['polygons', 'lines', 'vectors'];
 const GL_TYPES = ['lines', 'polygons', 'vectors'];
 const TYPE_LINE =  Math.pow(2, GL_TYPES.indexOf('lines'));  // 2;
 const TYPE_POLY = Math.pow(2, GL_TYPES.indexOf('polygons'));  //1;
 const TYPE_VECT = Math.pow(2, GL_TYPES.indexOf('vectors'));  //4;
 
-// structured to match vtk source
-function PolyDataReader(publicAPI, model) {
-
-    model.classHierarchy.push('PolyDataReader');
-
-    publicAPI.requestData = function(inData, outData) {
-        if (model.deleted) {
-            return;
-        }
-        if (! model.json) {
-            return;
-        }
-
-        //const dataset = outData[0];
-        //const pd = objToPolyData(model.json, model.typeMask, model.addNormals);
-        outData[0] = objToPolyData(model.json, model.typeMask, model.addNormals);
-    };
-
-    publicAPI.setJson = function(json) {  // ??
-        model.json = json;
-        model.polyData = objToPolyData(model.json, model.typeMask, model.addNormals);
-    };
+function getTestBox() {
+    let s = vtk.Filters.Sources.vtkCubeSource.newInstance({
+        xLength: 20, yLength: 20, zLength: 20,
+        center: [0, 0, 0],
+    });
+    let m = vtk.Rendering.Core.vtkMapper.newInstance({
+        static: true,
+    });
+    m.setInputConnection(s.getOutputPort());
+    let a = vtk.Rendering.Core.vtkActor.newInstance({
+        mapper: m,
+    });
+    a.getProperty().setColor(0, 1, 0);
+    a.getProperty().setEdgeVisibility(true);
+    return a;
 }
 
-const PD_SOURCE_DEFAULT_VALUES = {
-    json: {},
-    typeMask: 0,
-    addNormals: false
-};
-
-
-function extend(publicAPI, model, initialValues = {}) {
-    Object.assign(model, PD_SOURCE_DEFAULT_VALUES, initialValues);
-
-    vtk.macro.obj(publicAPI, model);
-    vtk.macro.get(publicAPI, model, ['polyData']);
-    vtk.macro.setGet(publicAPI, model, ['json']);
-    vtk.macro.algo(publicAPI, model, 0, 1);
-
-    PolyDataReader(publicAPI, model);
+function getTestCylinder() {
+    let s = vtk.Filters.Sources.vtkCylinderSource.newInstance({
+        radius: 5, height: 30, center: [20, 0, 0]
+    });
+    let m = vtk.Rendering.Core.vtkMapper.newInstance({
+        static: true,
+    });
+    m.setInputConnection(s.getOutputPort());
+    let a = vtk.Rendering.Core.vtkActor.newInstance({
+        mapper: m
+    });
+    a.getProperty().setColor(1, 0, 0);
+    a.getProperty().setEdgeVisibility(true);
+    return a;
 }
-const newPolyDataReader = vtk.macro.newInstance(extend, 'PolyDataReader');
 
 function objBounds(json) {
 
@@ -144,18 +133,7 @@ function objToPolyData(json, typeMask, addNormals) {
         dataType: vtk.Common.Core.vtkDataArray.VtkDataTypes.UNSIGNED_CHAR
     }));
 
-    //pd.buildCells();
-
-    if (addNormals) {
-        pd.getCellData().setNormals(
-            vtk.Common.Core.vtkDataArray.newInstance({
-                name: 'Normals',
-                values: new window.Float32Array(json.polygons.normals),
-                numberOfComponents: 3,
-            })
-        );
-    }
-
+    pd.buildCells();
 
     return pd;
 }
@@ -168,10 +146,10 @@ function vectorsToPolyData(json) {
 }
 
 module.exports = {
-    newPolyDataReader: newPolyDataReader,
+    getTestBox: getTestBox,
+    getTestCylinder: getTestCylinder,
     objBounds: objBounds,
     objToPolyData: objToPolyData,
-    PolyDataReader: PolyDataReader,
     TYPE_LINE: TYPE_LINE,
     TYPE_POLY: TYPE_POLY,
     TYPE_VECT: TYPE_VECT,

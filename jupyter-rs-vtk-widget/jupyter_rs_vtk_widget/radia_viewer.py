@@ -81,7 +81,7 @@ class RadiaGeomMgr():
             v_data.vectors.directions.extend(nv)
             v_data.vectors.magnitudes.append(n)
 
-        l_data = self.geom_to_data(name, divide=False)
+        l_data = self.geom_to_data(name, divide=False)['data'][0]
         # temp color set - will move to client
         for c_idx, c in enumerate(l_data.lines.colors):
             l_data.lines.colors[c_idx] = 0.85
@@ -89,24 +89,31 @@ class RadiaGeomMgr():
         v_data.lines.lengths.extend(l_data.lines.lengths)
         v_data.lines.colors.extend(l_data.lines.colors)
 
-        return v_data
+        #return {name: [v_data]}
+        return {
+            'name': name,
+            'data': [v_data]
+        }
 
     def geom_to_data(self, name, axes=False, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
-        #TODO(mvk): if container, loop through children (non?)recursively -- we need
-        # separate actors for each object (we don't need to preserve parent-child
-        # relationships though (yet?))
         geom = self.get_geom(name)
-        if not divide:
-            return gui_utils.add_normals(rad.ObjDrwVTK(geom, 'Axes->No'))
         d_arr = []
+        if not divide:
+            d_arr.append(rs_utils.to_pkdict(rad.ObjDrwVTK(geom, 'Axes->No')))
+            #return rad.ObjDrwVTK(geom, 'Axes->No')
         # g_d = rad.ObjDrwVTK(self.get_geom(name), 'Axes->' + ('Yes' if axes else 'No'))
-        for g in rad.ObjCntStuf(geom):
-        #for g in self._get_all_geom(geom):
-            d_arr.append(gui_utils.add_normals(rad.ObjDrwVTK(g, 'Axes->No')))
-            #d_arr.append(rad.ObjDrwVTK(g, 'Axes->No'))
+        else:
+            for g in rad.ObjCntStuf(geom):
+            #for g in self._get_all_geom(geom):
+                d_arr.append(rs_utils.to_pkdict(rad.ObjDrwVTK(g, 'Axes->No')))
+                #d_arr.append(rad.ObjDrwVTK(g, 'Axes->No'))
 
-        return {name: d_arr}
+        #return {name: d_arr}
+        return {
+            'name': name,
+            'data': d_arr,
+        }
 
     def get_geom(self, name):
         return self._geoms[name]

@@ -19,6 +19,7 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
     bg_color = widgets.Color('#ffffff').tag(sync=True)
+    selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
     # support more than 1 field?
     field_color_map_name = Unicode('').tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
@@ -117,11 +118,11 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         self.rsdebug('{}'.format(change))
 
     def _has_data_type(self, type):
-        if self.model_data is None:
+        if self.model_data is None or 'data' not in self.model_data:
             return False
-        for name in self.model_data:
-            d_arr = self.model_data[name]
-            for d in d_arr:
+        #for name in self.model_data:
+        d_arr = self.model_data['data']
+        for d in d_arr:
                 if type not in d or len(d[type]['vertices']) == 0:
                     return False
         return True
@@ -222,8 +223,17 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             value=self.content.bg_color
         )
         # separate label to avoid text truncation
-        color_pick_grp = widgets.HBox(
+        bg_color_pick_grp = widgets.HBox(
             [widgets.Label('Background color'), self.bg_color_pick]
+        )
+
+        self.obj_color_pick = widgets.ColorPicker(
+            concise=True,
+            layout={'width': 'max-content'},
+            value=self.content.selected_obj_color
+        )
+        obj_color_pick_grp = widgets.HBox(
+            [widgets.Label('Object color'), self.obj_color_pick]
         )
 
         # to be populated by the client
@@ -257,7 +267,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         )
 
         view_props_grp = widgets.HBox(
-            [color_pick_grp, self.vector_grp, self.poly_alpha_grp,
+            [bg_color_pick_grp, obj_color_pick_grp, self.vector_grp, self.poly_alpha_grp,
              self.edge_toggle]
         )
 
@@ -265,6 +275,11 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         widgets.jslink(
             (self.bg_color_pick, 'value'),
             (self.content, 'bg_color')
+        )
+
+        widgets.jslink(
+            (self.obj_color_pick, 'value'),
+            (self.content, 'selected_obj_color')
         )
 
         widgets.jslink(
