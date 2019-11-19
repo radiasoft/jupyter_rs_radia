@@ -1,18 +1,20 @@
 {
-  "name": "jupyter-rs-vtk-widget",
+  "name": "jupyter-rs-radia-widget",
   "version": "0.0.1",
-  "description": "VTK widget for Jupyter",
+  "description": "Radia widget for Jupyter",
   "author": "RadiaSoft LLC",
+  "license": "Apache-2.0",
   "main": "lib/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/radiasoft/rsjpyradia"
+    "url": "https://github.com/radiasoft/rsjpyradia/jupyter-rs-radia-widget.git"
   },
   "keywords": [
     "ipython",
     "ipywidgets",
     "jupyter",
     "jupyterlab-extension",
+    "radia",
     "vtk",
     "widgets"
   ],
@@ -36,7 +38,13 @@
     "@jupyter-widgets/controls": "^1.5.2",
     "jquery": "^3.4.1",
     "lodash": "^4.17.4",
-    "vtk.js": "^11.4.1"
+    "os-locale": "^4.0.0",
+    "shader-loader": "^1.3.1",
+    "uglify-js": "^3.6.7",
+    "vtk.js": "^11.11.1",
+    "worker-loader": "^2.0.0",
+    "wslink": "^0.1.12",
+    "yargs": "^14.2.0"
   },
   "jupyterlab": {
     "extension": "lib/labplugin"

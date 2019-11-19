@@ -3,8 +3,10 @@ let $ = require('jquery');
 require('vtk.js');
 let controls = require('@jupyter-widgets/controls');
 let guiUtils = require('./gui_utils');
+//let guiUtils = require('rs-widget-utils/gui_utils');
 let widgets = require('@jupyter-widgets/base');
 let rsUtils = require('./rs_utils');
+//let rsUtils = require('rs-widget-utils/rs_utils');
 let vtkUtils = require('./vtk_utils');
 
 const GEOM_SURFACE_ACTOR = 'geomSurface';
@@ -24,15 +26,21 @@ let template = [
         '</div>',
     '</div>',
     // this to move to radia viewer
-    '<div class="vector-field-color-map" style="height: 32px;"></div>',
-    '<div class="vector-field-color-map-axis" style="height: 32px;">',
-        '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-            '<span>0.0</span>',
-            '<span>0.2</span>',
-            '<span>0.4</span>',
-            '<span>0.6</span>',
-            '<span>0.8</span>',
-            '<span>1.0</span>',
+    '<div class="vector-field-color-map-content">',
+        '<div class="vector-field-indicator">',
+            '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
+            '<span class="vector-field-indicator-value">0</span>',
+        '</div>',
+        '<div class="vector-field-color-map" style="height: 32px;"></div>',
+        '<div class="vector-field-color-map-axis" style="height: 32px;">',
+            '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
+                '<span>0.0</span>',
+                '<span>0.2</span>',
+                '<span>0.4</span>',
+                '<span>0.6</span>',
+                '<span>0.8</span>',
+                '<span>1.0</span>',
+            '</div>',
         '</div>',
     '</div>',
 ].join('');
@@ -161,18 +169,14 @@ function mapLinesToPolys(polyData) {
     let map = {};
     let i = 0;
     let j = 0;
-    //rsUtils.rsdbg('map pts', points);
     let lp = [];
     while (i < lines.length) {
         let inds = lines.slice(i + 1, i + lines[i] + 1);
         let pts = [];
         for (let k = 0; k < inds.length; ++k) {
             let tdx = 3 * inds[k];
-            //rsUtils.rsdbg('line', j, 'tdx', tdx);
-            //pts.push(polyData.getPoints().getTuple(tdx));
             pts.push(points.slice(tdx, tdx + 3));
         }
-        //rsUtils.rsdbg('line', j, 'inds', inds, 'npts', lines[i], 'is pts', pts);
         lp.push(pts);
         i += (lines[i] + 1);
         ++j;
@@ -189,7 +193,6 @@ function mapLinesToPolys(polyData) {
             pts.push(points.slice(tdx, tdx + 3));
         }
         pts.push(pts[0]);  // to cf with lines
-        //rsUtils.rsdbg('poly', j, 'is pts', pts);
         pp.push(pts);
         i += (polys[i] + 1);
         ++j;
@@ -251,14 +254,6 @@ function numDataColors(data) {
         ++j;
     }
     return j;
-}
-
-function vectorsToPolyData(json) {
-    let cm = json.vectors.colorMap;
-    let points = new window.Float32Array(json.vectors.vertices);
-    let pd = vtk.Common.DataModel.vtkPolyData.newInstance();
-    pd.getPoints().setData(points, 3);
-    return pd;
 }
 
 // Custom Model. Custom widgets models must at least provide default values
@@ -327,6 +322,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             type: typeForName(name),
         };
         if (info.scalars) {
+            // depends on order the points were added.  Maybe map an offset instead
             info.lineIndices = rsUtils.indexArray(info.numLineColors)
                 .map(function (i) {
                     return 4 * i;
@@ -429,13 +425,149 @@ var VTKView = widgets.DOMWidgetView.extend({
 
         //rsUtils.rsdbg('refresh');
         const view = this;
+
+        this.selectedObject = null;
         if (! this.fsRenderer) {
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 container: $(this.el).find('.vtk-content')[0],
             });
+            this.fsRenderer.getRenderWindow().getInteractor().onLeftButtonPress(function (callData) {
+                let  r = view.fsRenderer.getRenderer();
+                if (r !== callData.pokedRenderer) {
+                    return;
+                }
+
+                // ??
+                if (! callData.controlKey) {
+                    return;
+                }
+
+                //view.selectedObject = null;
+                const pos = callData.position;
+                const point = [pos.x, pos.y, 0.0];
+                view.ptPicker.pick(point, r);
+                view.cPicker.pick(point, r);
+                const pid = view.ptPicker.getPointId();
+
+                // cell id is "closest cell within tolerance", meaning a single value, though
+                // we may get multiple actors
+                let cid = view.cPicker.getCellId();
+                //rsUtils.rsdbg('Picked pt', point);
+                //rsUtils.rsdbg('Picked pt at', pres, 'id', pid);
+                rsUtils.rsdbg('Picked cell at', 'cid', cid);
+                //if (pid < 0) {
+                //    return;
+                //}
+
+                let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
+                if (! picker) {
+                    rsUtils.rsdbg('Pick failed');
+                    return;
+                }
+
+                let pas = picker.getActors();
+                let posArr = view.cPicker.getPickedPositions();
+                rsUtils.rsdbg('pas', pas, 'positions', posArr);
+                //TODO(mvk): need to get actor closest to the "screen" based on the selected points
+
+                let selectedColor = [];
+                for (let aIdx in pas) {
+                    let actor = pas[aIdx];
+                    //view.selectedObject = actor;
+
+                    let pos = posArr[aIdx];
+                    let info = view.getInfoForActor(actor);
+                    if (! info.pData) {
+                        // actor color?
+                        continue;
+                    }
+
+                    let pts = info.pData.getPoints();
+
+                    // TODO(mvk): attach pick functions to actor info
+                    if (info.type === VECTOR_ACTOR) {
+                        let n = pts.getNumberOfComponents();
+                        let coords = pts.getData().slice(n * pid, n * (pid + 1));
+                        let f = actor.getMapper().getInputConnection(0).filter;
+                        let linArr = f.getOutputData().getPointData().getArrayByName(LINEAR_SCALE_ARRAY);
+                        if (! linArr) {
+                            continue;
+                        }
+                        let d = linArr.getData();
+                        let m = d[pid * linArr.getNumberOfComponents()];
+                        rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
+                        view.setFieldIndicator(m, d[0], d[d.length - 1]);
+                        continue;
+                    }
+                    if (info.type === GEOM_SURFACE_ACTOR) {
+
+                        // toggle -- does not work if new data is loaded...
+                        if (actor === view.selectedObject) {
+                            view.selectedObject = null;
+                        }
+                        else {
+                            view.selectedObject = actor;
+                        }
+
+                        let colors = info.scalars.getData();
+                        let cells = info.pData.getCellData();
+
+                        let cellPts = info.pData.getCellPoints(cid);
+                        let ct = cellPts.cellType;
+                        if (info.linePolyMap[cid]) {
+                            //rsUtils.rsdbg(info.name, 'using poly', info.linePolyMap[cid]);
+                            cid = info.linePolyMap[cid];
+                            ct = vtk.Common.DataModel.vtkCell.VTK_POLYGON  // use matching poly
+                        }
+                        // we picked a line cell, find a polygon
+                        if (ct === vtk.Common.DataModel.vtkCell.VTK_LINE || ct === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE ) {
+                            let j = info.lineIndices[cid];
+                            selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
+                            //rsUtils.rsdbg(info.name, 'line tup', cid, selectedColor);
+                        }
+                        else {
+                            let j = info.polyIndices[cid];
+                            selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
+                            rsUtils.rsdbg(info.name, 'poly tup', cid, selectedColor);
+                        }
+                        if (selectedColor.length > 0) {
+                            break;
+                        }
+                    }
+                }
+
+                //rsUtils.rsdbg('selected', view.selectedObject, selectedColor);
+                if (selectedColor.length === 0) {
+                    view.selectedObject = null;
+                    return;
+                }
+                // can't map, because we will still have a UINT8 array
+                let sc = [];
+                for (let cIdx = 0; cIdx < selectedColor.length; ++cIdx) {
+                    sc.push(selectedColor[cIdx] / 255.0);
+                }
+                let hsv = [0, 0, 0];
+                let scComp = [0, 0, 0];
+                vtk.Common.Core.vtkMath.rgb2hsv(sc, hsv);
+                rsUtils.rsdbg('rgb', sc, '-> hsv', hsv);
+                hsv[0] = 1.0 - hsv[0];
+                vtk.Common.Core.vtkMath.hsv2rgb(hsv, scComp);
+                rsUtils.rsdbg('comp hsv', hsv, '-> comp rgb', scComp);
+
+                let sch = vtk.Common.Core.vtkMath.floatRGB2HexCode(sc);
+                //rsUtils.rsdbg('selected color float', sc, 'hex', sch);
+                view.model.set('selected_obj_color', sch);
+                //TODO(mvk): figure out a good highlight color programmatically
+                for (let name in view.actorInfo) {
+                    let a = view.getActor(name);
+                    view.setEdgeColor(a, a === view.selectedObject ? [0, 255, 255] : [0, 0, 0]);
+                }
+            });
             this.setBgColor();
             this.setEdgesVisible();
         }
+
+        this.removeActors();
 
         if (! this.orientationMarker) {
             this.orientationMarker = vtk.Interaction.Widgets.vtkOrientationMarkerWidget.newInstance({
@@ -466,106 +598,9 @@ var VTKView = widgets.DOMWidgetView.extend({
             //this.cPicker.initializePickList();
         }
 
-        this.fsRenderer.getRenderWindow().getInteractor().onLeftButtonPress(function (callData) {
-            view.selectedObject = null;
-            let  r = view.fsRenderer.getRenderer();
-            if (r !== callData.pokedRenderer) {
-                return;
-            }
 
-            // ??
-            if (! callData.controlKey) {
-                return;
-            }
-
-            const pos = callData.position;
-            // change z?
-            const point = [pos.x, pos.y, 0.0];
-            view.ptPicker.pick(point, r);
-            view.cPicker.pick(point, r);
-            const pid = view.ptPicker.getPointId();
-
-            // cell id is "closest cell within tolerance", meaning a single value, though
-            // we may get multiple actors
-            let cid = view.cPicker.getCellId();
-            //rsUtils.rsdbg('Picked pt', point);
-            //rsUtils.rsdbg('Picked pt at', pres, 'id', pid);
-            rsUtils.rsdbg('Picked cell at', 'cid', cid);
-            //if (pid < 0) {
-            //    return;
-            //}
-
-            let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
-            if (! picker) {
-                rsUtils.rsdbg('Pick failed');
-                return;
-            }
-
-            let pas = picker.getActors();
-            let posArr = view.cPicker.getPickedPositions();
-            rsUtils.rsdbg('pas', pas, 'positions', posArr);
-            //TODO(mvk): need to get actor closest to the "screen" based on the selected points
-
-           // view.selectedObject = pas[0];
-
-
-            //return;
-
-            for (let aIdx in pas) {
-                let actor = pas[aIdx];
-                let pos = posArr[aIdx];
-                let info = view.getInfoForActor(actor);
-                if (! info.pData) {
-                    // actor color?
-                    continue;
-                }
-
-                let pts = info.pData.getPoints();
-
-                // TODO(mvk): attach pick functions to actor info
-                if (info.type === VECTOR_ACTOR) {
-                    let n = pts.getNumberOfComponents();
-                    let coords = pts.getData().slice(n * pid, n * (pid + 1));
-                    let f = actor.getMapper().getInputConnection(0).filter;
-                    let linArr = f.getOutputData().getPointData().getArrayByName(LINEAR_SCALE_ARRAY);
-                    if (! linArr) {
-                        continue;
-                    }
-                    let m = linArr.getData()[pid * linArr.getNumberOfComponents()];
-                    rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
-                }
-                if (info.type === GEOM_SURFACE_ACTOR) {
-
-                    let colors = info.scalars.getData();
-                    let cells = info.pData.getCellData();
-
-                    let cellPts = info.pData.getCellPoints(cid);
-                    let ct = cellPts.cellType;
-                    if (info.linePolyMap[cid]) {
-                        rsUtils.rsdbg(info.name, 'using poly', info.linePolyMap[cid]);
-                        cid = info.linePolyMap[cid];
-                        ct = 9;  // use matching poly
-                    }
-                    //rsUtils.rsdbg('cells', cells, 'sc', cells.getScalars(), 'cpts', cellPts);
-                    //rsUtils.rsdbg('cell', cid, 'cpts', cellPts, 'cells', cells, cells.getScalars().getNumberOfTuples());
-                    // we picked a line cell, find a polygon
-                    //if (cellPts.cellType === vtk.Common.DataModel.vtkCell.VTK_LINE ||
-                    //    cellPts.cellType === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE) {
-                    //rsUtils.rsdbg('checking lif line', vtk.Common.DataModel.vtkCell.CellType.VTK_LINE, vtk.Common.DataModel.vtkCell.CellType.VTK_POLY_LINE);
-                    if (ct === 3 || ct === 4) {
-                        let j = info.lineIndices[cid];
-                        rsUtils.rsdbg(info.name, 'line tup', cid, colors.slice(j, j + 4));
-                    }
-                    else {
-                        let j = info.polyIndices[cid];
-                        rsUtils.rsdbg(info.name, 'poly tup', cid, colors.slice(j, j + 4));
-                    }
-                }
-            }
-        });
-
-        this.removeActors();
-        $(this.el).find('.vector-field-color-map').css('display', 'none');
+        //this.removeActors();
+        $(this.el).find('.vector-field-color-map-content').css('display', 'none');
 
         let sceneData = this.model.get('model_data');
         if ($.isEmptyObject(sceneData)) {
@@ -574,17 +609,14 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
 
-        //let pData = vtkUtils.objToPolyData(sceneData);
         // the data to include are specific to each case and should be settable
-        // pickable
-        rsUtils.rsdbg('looping', sceneData);
         let totalBounds = [
             Number.MAX_VALUE, -Number.MAX_VALUE,
             Number.MAX_VALUE, -Number.MAX_VALUE,
             Number.MAX_VALUE, -Number.MAX_VALUE
         ];
 
-        //
+        // move to test method for the user to invoke
         const useTestObjects = false;
         if (useTestObjects) {
             this.addActor('CUBE', vtkUtils.getTestBox(), false);
@@ -593,101 +625,76 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
 
-       // for (let name in sceneData) {
         const name = sceneData.name;
-            let data = sceneData.data;
-            rsUtils.rsdbg('got data', data, 'for', name);
-            for (let i = 0; i < data.length; ++i) {
+        let data = sceneData.data;
+        rsUtils.rsdbg('got data', data, 'for', name);
+        for (let i = 0; i < data.length; ++i) {
 
-                let sceneDatum = data[i];
-                let bounds = vtkUtils.objBounds(sceneDatum);
-                rsUtils.rsdbg(name, 'poly bounds', bounds);
-                let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY | vtkUtils.TYPE_LINE);
-                const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
-                    static: true
-                });
-                mapper.setInputData(pData);
+            let sceneDatum = data[i];
+            let bounds = vtkUtils.objBounds(sceneDatum);
+            rsUtils.rsdbg(name, 'poly bounds', bounds);
+            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
+            const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
+                static: true
+            });
+            mapper.setInputData(pData);
+            let actor = vtk.Rendering.Core.vtkActor.newInstance({
+                mapper: mapper
+            });
+            actor.getProperty().setEdgeVisibility(true);
+            this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pData.getNumberOfPolys() > 0);
+            //this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, true);
+
+            //if (sceneData.vectors && sceneData.vectors.vertices.length) {
+            let vectors = sceneDatum.vectors;
+            if (vectors && vectors.vertices.length) {
+                let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);
+                let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
+                vectorCalc.setFormula(getVectFormula(vectors, this.model.get('field_color_map_name')));
+                vectorCalc.setInputData(vData);
+
+                let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
+                mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
+
+                let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
+                mapper.setInputConnection(s.getOutputPort(), 1);
+                mapper.setOrientationArray(ORIENTATION_ARRAY);
+
+                // this scales by a constant - the default is to use scalar data
+                //TODO(mvk): set based on bounds size
+                mapper.setScaleFactor(8.0);
+                mapper.setScaleModeToScaleByConstant();
+                mapper.setColorModeToDefault();
+
                 let actor = vtk.Rendering.Core.vtkActor.newInstance({
                     mapper: mapper
                 });
-                actor.getProperty().setEdgeVisibility(true);
-                //this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pDataSource.getPolyData().getNumberOfPolys() > 0);
-                this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, true);
+                actor.getProperty().setLighting(false);
+                this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
 
-                //if (sceneData.vectors && sceneData.vectors.vertices.length) {
-                if (sceneDatum.vectors && sceneDatum.vectors.vertices.length) {
-                    let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);
-                    let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
-                    //vectorCalc.setFormula(getVectFormula(sceneData.vectors, this.model.get('field_color_map_name')));
-                    vectorCalc.setFormula(getVectFormula(sceneDatum.vectors, this.model.get('field_color_map_name')));
-                    vectorCalc.setInputData(vData);
+                $(this.el).find('.vector-field-color-map-content').css('display', 'block');
+                this.setFieldColorMapScale();
 
-                    let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
-                    mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
-
-                    let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
-                    mapper.setInputConnection(s.getOutputPort(), 1);
-                    mapper.setOrientationArray(ORIENTATION_ARRAY);
-
-                    // this scales by a constant - the default is to use scalar data
-                    //TODO(mvk): set based on bounds size
-                    mapper.setScaleFactor(8.0);
-                    mapper.setScaleModeToScaleByConstant();
-                    mapper.setColorModeToDefault();
-
-                    let actor = vtk.Rendering.Core.vtkActor.newInstance({
-                        mapper: mapper
-                    });
-                    actor.getProperty().setLighting(false);
-                    this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
-
-                    $(this.el).find('.vector-field-color-map').css('display', 'block');
-
-                    //TODO(mvk): real axis with tick marks, labels, etc.
-                    let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
-                    let numTicks = fieldTicks.length;
-                    if (numTicks >= 2) {
-                        rsUtils.rsdbg('getting min max for color scake');
-                        let minV = Math.min.apply(null, sceneDatum.vectors.magnitudes);
-                        let maxV = Math.max.apply(null, sceneDatum.vectors.magnitudes);
-                        fieldTicks[0].textContent = ('' + minV).substr(0, 4);
-                        fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
-                        let dv = (maxV - minV) / (numTicks - 1);
-                        for (let i = 1; i < numTicks - 1; ++i) {
-                            fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
-                        }
+                //TODO(mvk): real axis with tick marks, labels, etc.
+                let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
+                let numTicks = fieldTicks.length;
+                if (numTicks >= 2) {
+                    let minV = vectors.range[0];  //Math.min.apply(null, vectors.magnitudes);
+                    let maxV = vectors.range[1];  //Math.max.apply(null, vectors.magnitudes);
+                    fieldTicks[0].textContent = ('' + minV).substr(0, 4);
+                    fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
+                    let dv = (maxV - minV) / (numTicks - 1);
+                    for (let i = 1; i < numTicks - 1; ++i) {
+                        fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
                     }
                 }
-                for(let j = 0; j < 3; ++j) {
-                    let k = 2 * j;
-                    totalBounds[k] = Math.min(totalBounds[k], bounds[k]);
-                    totalBounds[k + 1] = Math.max(totalBounds[k + 1], bounds[k + 1]);
-                }
             }
-        //}
-        // add an invisible bounding box
-        /*
-        let s = vtk.Filters.Sources.vtkCubeSource.newInstance({
-            xLength: 2 * Math.abs(totalBounds[1] - totalBounds[0]),
-            yLength: 2 * Math.abs(totalBounds[3] - totalBounds[2]),
-            zLength: 2 * Math.abs(totalBounds[5] - totalBounds[4]),
-            center: [
-                2 * (totalBounds[0] + (totalBounds[1] - totalBounds[0]) / 2.0),
-                2 * (totalBounds[2] + (totalBounds[3] - totalBounds[2]) / 2.0),
-                2 * (totalBounds[4] + (totalBounds[5] - totalBounds[4]) / 2.0)
-            ]
-        });
-        let m = vtk.Rendering.Core.vtkMapper.newInstance();
-        m.setInputConnection(s.getOutputPort());
-        let a = vtk.Rendering.Core.vtkActor.newInstance({
-            mapper: m
-        });
-        a.getProperty().setColor(1, 1, 1);
-        a.getProperty().setFrontfaceCulling(true);
-        a.getProperty().setLighting(false);
-        a.getProperty().setEdgeVisibility(true);
-        this.addActor('BOUNDS', a, false);
-         */
+            for(let j = 0; j < 3; ++j) {
+                let k = 2 * j;
+                totalBounds[k] = Math.min(totalBounds[k], bounds[k]);
+                totalBounds[k + 1] = Math.max(totalBounds[k + 1], bounds[k + 1]);
+            }
+        }
         this.resetView();
     },
 
@@ -700,6 +707,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
+        // store current settings in cookies?
         //let c = document.cookie;
         //rsUtils.rsdbg('cookies', c);
         this.model.on('change:model_data', this.refresh, this);
@@ -714,11 +722,9 @@ var VTKView = widgets.DOMWidgetView.extend({
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
-            //this.setFieldColorMapScale();
             this.isLoaded = true;
             this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
         }
-        //rsUtils.rsdbg('render done');
     },
 
     resetView: function() {
@@ -753,16 +759,62 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
+    // need to allow setting color for entire actor, single poly, or 3d cell
     setSelectedObjColor: function() {
+        if (! this.selectedObject) {
+            return;
+        }
+        let info = this.getInfoForActor(this.selectedObject);
+        let s = info.scalars;
+        let newColor = vtk.Common.Core.vtkMath.hex2float(this.model.get('selected_obj_color'));
+        if (! s) {
+            this.selectedObject.getProperty().setColor(newColor[0], newColor[1], newColor[2]);
+            return;
+        }
+        let colors = s.getData();
+        let nc = s.getNumberOfComponents();
+        let i = 0;
+        for (let j = 0; j < info.polyIndices.length && i < s.getNumberOfValues(); ++j) {
+            for (let k = 0; k < 3; ++k) {
+                colors[info.polyIndices[j] + k] = Math.floor(255 * newColor[k]);
+            }
+            i += nc;
+        }
+        info.pData.modified();
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setEdgeColor: function(actor, color) {
+        if (! actor ) {
+            return;
+        }
+        let info = this.getInfoForActor(actor);
+        actor.getProperty().setEdgeColor(color[0], color[1], color[2]);
+        let s = info.scalars;
+        if (! s) {
+            return;
+        }
+        let colors = s.getData();
+        let i = 0;
+        for (let j = 0; j < info.lineIndices.length && i < s.getNumberOfValues(); ++j) {
+            for (let k = 0; k < 3; ++k) {
+                colors[info.lineIndices[j] + k] = color[k];
+            }
+            i += 4;
+        }
+        info.pData.modified();
 
         this.fsRenderer.getRenderWindow().render();
     },
 
     setEdgesVisible: function() {
-        //return;
         let doShow = this.model.get('show_edges');
         for (let name in this.actorInfo) {
             let info = this.getActorInfo(name);
+            // arrows just turn black when edges are on
+            if (info.type === VECTOR_ACTOR) {
+                continue;
+            }
             this.getActor(name).getProperty().setEdgeVisibility(doShow);
             let s = info.scalars;
             if (! s) {
@@ -832,6 +884,20 @@ var VTKView = widgets.DOMWidgetView.extend({
             mapper.setScaleModeToScaleByComponents();
         }
         this.fsRenderer.getRenderWindow().render();
+    },
+
+
+    setFieldIndicator: function(val, min, max) {
+        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        if (! actor) {
+            return;
+        }
+        let w = $(this.el).find('.vector-field-color-map').width();
+        let f = Math.abs(val / (max - min));
+        let l = w * f;
+        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'left', l);
+        $(this.el).find('.vector-field-indicator').css('left', '25px');
+        $(this.el).find('.vector-field-indicator-value').text(val);
     },
 
     setMarkerVisible: function() {

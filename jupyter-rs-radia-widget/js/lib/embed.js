@@ -5,9 +5,7 @@
 // already be loaded by the notebook otherwise.
 
 // Export widget models and views, and the npm package version number.
-//module.exports = require('./radia_viewer.js');
-//module.exports = require('./vtk_viewer.js');
 module.exports = Object.assign(
-    require('./vtk_viewer.js'),
+    require('./radia_viewer.js'),
 );
 module.exports['version'] = require('../package.json').version;
