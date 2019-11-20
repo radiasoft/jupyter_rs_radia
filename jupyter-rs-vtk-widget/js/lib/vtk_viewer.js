@@ -19,30 +19,30 @@ const VECTOR_ACTOR = 'vector';
 const ACTOR_TYPES = [GEOM_SURFACE_ACTOR, VECTOR_ACTOR];
 
 let template = [
-    '<div style="border-style: solid; border-color: blue; border-width: 1px;">',
+    '<div class="vtk-widget" style="border-style: solid; border-color: blue; border-width: 1px;">',
         '<div class="viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div style="margin: 1em;">',
             '<div class="vtk-content"></div>',
         '</div>',
     '</div>',
     // this to move to radia viewer
-    '<div class="vector-field-color-map-content">',
-        '<div class="vector-field-indicator">',
-            '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
-            '<span class="vector-field-indicator-value">0</span>',
-        '</div>',
-        '<div class="vector-field-color-map" style="height: 32px;"></div>',
-        '<div class="vector-field-color-map-axis" style="height: 32px;">',
-            '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-                '<span>0.0</span>',
-                '<span>0.2</span>',
-                '<span>0.4</span>',
-                '<span>0.6</span>',
-                '<span>0.8</span>',
-                '<span>1.0</span>',
-            '</div>',
-        '</div>',
-    '</div>',
+    //'<div class="vector-field-color-map-content">',
+    //    '<div class="vector-field-indicator">',
+    //        '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
+    //        '<span class="vector-field-indicator-value">0</span>',
+    //    '</div>',
+    //    '<div class="vector-field-color-map" style="height: 32px;"></div>',
+    //    '<div class="vector-field-color-map-axis" style="height: 32px;">',
+    //        '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
+    //            '<span>0.0</span>',
+    //            '<span>0.2</span>',
+    //            '<span>0.4</span>',
+    //            '<span>0.6</span>',
+    //            '<span>0.8</span>',
+    //            '<span>1.0</span>',
+    //        '</div>',
+    //    '</div>',
+    //'</div>',
 ].join('');
 
 // these objects are used to set various vector properties
@@ -964,15 +964,15 @@ var ViewerView = controls.VBoxView.extend({
         //this.listenTo(this.model, 'all', this.handleMessage);
 
         // set dropdown contents and initial values
-        this.model.set('external_props', {
-            field_color_maps: guiUtils.getColorMaps(),
-            field_color_map_name: 'viridis',
-            vector_scaling_types: ['Uniform', 'Linear', 'Log'],
-            vector_scaling: 'Uniform',
-        });
+        //this.model.set('external_props', {
+        //    field_color_maps: guiUtils.getColorMaps(),
+        //    field_color_map_name: 'viridis',
+        //    vector_scaling_types: ['Uniform', 'Linear', 'Log'],
+        //    vector_scaling: 'Uniform',
+        //});
 
         // required to get the python model in sync right away
-        this.touch();
+        ///this.touch();
 
     }
 });

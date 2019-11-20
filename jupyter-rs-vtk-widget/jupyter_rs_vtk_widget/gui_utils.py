@@ -2,6 +2,12 @@ from __future__ import absolute_import, division, print_function
 
 from pykern.pkcollections import PKDict
 
+GL_TYPE_LINES = 'lines'
+GL_TYPE_POLYS = 'polygons'
+GL_TYPE_VECTS = 'vectors'
+GL_TYPES = [GL_TYPE_LINES, GL_TYPE_POLYS, GL_TYPE_VECTS]
+
+
 def get_test_obj():
     box1 = new_gl_object()
     box1.polygons.lengths = [4, 4, 4, 4]
@@ -64,6 +70,24 @@ def get_test_obj():
     ]
 
     return PKDict(name='Test', data=[box1, box2])
+
+
+def _obj_has_data_type(gl_obj, d_type):
+    if gl_obj is None:
+        return False
+    return d_type in gl_obj and len(gl_obj[d_type]['vertices']) > 0
+
+
+def any_obj_has_data_type(gl_obj_arr, d_type):
+    return any([_obj_has_data_type(o, d_type) for o in gl_obj_arr])
+
+
+def has_polys(gl_obj):
+    return _obj_has_data_type(gl_obj, GL_TYPE_POLYS)
+
+
+def has_vectors(gl_obj):
+    return _obj_has_data_type(gl_obj, GL_TYPE_VECTS)
 
 
 def new_gl_object():

@@ -74,7 +74,6 @@ class RadiaGeomMgr():
             for g in radia.ObjCntStuf(geom):
             #for g in self._get_all_geom(geom):
                 d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
-                #d_arr.append(rad.ObjDrwVTK(g, 'Axes->No'))
 
         return {
             'name': name,
@@ -99,14 +98,6 @@ class RadiaGeomMgr():
             # key error if does not exist
             g = self.get_geom(g_name)
             ctr['geoms'].append(g)
-
-    def show_viewer(self, geom_name):
-        # put geom in main viewer
-        return
-
-    def show_component_viewer(self, geom_name):
-        # put geom in main viewer
-        return
 
     def __init__(self):
         self._geoms = {}

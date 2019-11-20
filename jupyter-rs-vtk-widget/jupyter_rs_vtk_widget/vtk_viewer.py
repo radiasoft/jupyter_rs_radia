@@ -18,16 +18,17 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
+    # marking fields that should move to radia
     bg_color = widgets.Color('#ffffff').tag(sync=True)
     selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
     # support more than 1 field?
-    field_color_map_name = Unicode('').tag(sync=True)
+    #field_color_map_name = Unicode('').tag(sync=True)  # radia ("vector_color_map")
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
-    vector_scaling = Unicode('').tag(sync=True)
+    #vector_scaling = Unicode('').tag(sync=True)  # radia
 
     def set_title(self, t):
         self.title = t
@@ -44,19 +45,12 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
         #self.rsdebug('VTK ready')
         pass
 
-    def __init__(self, title='', bg_color='#ffffff', data=None, inset=False):
+    def __init__(self, title='', bg_color='#ffffff', data=None):
         self.model_data = {} if data is None else data
         self.title = title
         self.bg_color = bg_color
         self.on_displayed(self._vtk_displayed)
         super(VTK, self).__init__()
-        if inset:
-            self.layout = widgets.Layout(
-                width='10%'
-            )
-            self.show_marker = False
-            self.poly_alpha = 0.25
-            self.show_edges = True
 
 
 # Note we need to subclass VBox in the javascript as well
@@ -98,6 +92,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     field_color_maps = List(default_value=list()).tag(sync=True)
     vector_scaling_types = List(default_value=list()).tag(sync=True)
 
+    # add data param
     def display(self):
         return self
 
@@ -107,6 +102,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         self.content.model_data = data
         self._update_layout()
 
+    # several test modes?  polyData, built-in vtk sources, etc.
     def test(self):
         self.set_data(gui_utils.get_test_obj())
 
@@ -117,23 +113,12 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def _handle_change(self, change):
         self.rsdebug('{}'.format(change))
 
-    def _has_data_type(self, type):
+    def _has_data_type(self, d_type):
         if self.model_data is None or 'data' not in self.model_data:
             return False
-        #for name in self.model_data:
-        d_arr = self.model_data['data']
-        for d in d_arr:
-                if type not in d or len(d[type]['vertices']) == 0:
-                    return False
-        return True
-        #return type in self.model_data and \
-        #    len(self.model_data[type]['vertices']) > 0
-
-    def _has_polys(self):
-        return self._has_data_type('polygons')
-
-    def _has_vectors(self):
-        return self._has_data_type('vectors')
+        return gui_utils.any_obj_has_data_type(
+                self.model_data['data'], d_type
+            )
 
     # send message to content to reset camera to default position
     def _reset_view(self, b):
@@ -177,8 +162,10 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         self.content.vector_scaling = d['new']
 
     def _update_layout(self):
-        self.vector_grp.layout.display = None if self._has_vectors() else 'none'
-        self.poly_alpha_grp.layout.display = None if self._has_polys() else 'none'
+        self.vector_grp.layout.display =\
+            None if self._has_data_type(gui_utils.GL_TYPE_VECTS)else 'none'
+        self.poly_alpha_grp.layout.display = \
+            None if self._has_data_type(gui_utils.GL_TYPE_POLYS) else 'none'
 
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
