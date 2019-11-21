@@ -25,24 +25,6 @@ let template = [
             '<div class="vtk-content"></div>',
         '</div>',
     '</div>',
-    // this to move to radia viewer
-    //'<div class="vector-field-color-map-content">',
-    //    '<div class="vector-field-indicator">',
-    //        '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
-    //        '<span class="vector-field-indicator-value">0</span>',
-    //    '</div>',
-    //    '<div class="vector-field-color-map" style="height: 32px;"></div>',
-    //    '<div class="vector-field-color-map-axis" style="height: 32px;">',
-    //        '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-    //            '<span>0.0</span>',
-    //            '<span>0.2</span>',
-    //            '<span>0.4</span>',
-    //            '<span>0.6</span>',
-    //            '<span>0.8</span>',
-    //            '<span>1.0</span>',
-    //        '</div>',
-    //    '</div>',
-    //'</div>',
 ].join('');
 
 // these objects are used to set various vector properties
@@ -50,6 +32,7 @@ let vectInArrays = [{
     location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.COORDINATE,
 }];
 
+// to be set by parent widget
 let vectOutArrays = [{
         location: vtk.Common.DataModel.vtkDataSet.FieldDataTypes.POINT,
         name: SCALAR_ARRAY,
@@ -83,6 +66,7 @@ function getVectOutIndex(name) {
 
 // used to create array of arrows (or other objects) for vector fields
 // change to use magnitudes and color locally
+// to be set by parent widget
 function getVectFormula(vectors, colorMapName) {
 
     // can we cache these?
@@ -162,6 +146,7 @@ function typeForName(name) {
 
 // if a "line" has the same points as a polygon, associate the line index to that of the poly.
 // CellPickers seem to prioritize edges
+// get rid of this?
 function mapLinesToPolys(polyData) {
     let lines = polyData.getLines().getData();
     let polys = polyData.getPolys().getData();
@@ -416,6 +401,7 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     },
 
+    //
     setData: function(d) {
         this.model.set('model_data', d);
         this.refresh();
@@ -431,6 +417,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             this.fsRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance({
                 container: $(this.el).find('.vtk-content')[0],
             });
+            // parent to supply?
             this.fsRenderer.getRenderWindow().getInteractor().onLeftButtonPress(function (callData) {
                 let  r = view.fsRenderer.getRenderer();
                 if (r !== callData.pokedRenderer) {
@@ -496,7 +483,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                         let d = linArr.getData();
                         let m = d[pid * linArr.getNumberOfComponents()];
                         rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
-                        view.setFieldIndicator(m, d[0], d[d.length - 1]);
+                        //view.setFieldIndicator(m, d[0], d[d.length - 1]);
                         continue;
                     }
                     if (info.type === GEOM_SURFACE_ACTOR) {
@@ -598,8 +585,6 @@ var VTKView = widgets.DOMWidgetView.extend({
             //this.cPicker.initializePickList();
         }
 
-
-        //this.removeActors();
         $(this.el).find('.vector-field-color-map-content').css('display', 'none');
 
         let sceneData = this.model.get('model_data');
@@ -632,7 +617,6 @@ var VTKView = widgets.DOMWidgetView.extend({
 
             let sceneDatum = data[i];
             let bounds = vtkUtils.objBounds(sceneDatum);
-            rsUtils.rsdbg(name, 'poly bounds', bounds);
             let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
             const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
                 static: true
@@ -673,7 +657,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
 
                 $(this.el).find('.vector-field-color-map-content').css('display', 'block');
-                this.setFieldColorMapScale();
+                //this.setFieldColorMapScale();
 
                 //TODO(mvk): real axis with tick marks, labels, etc.
                 let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
@@ -713,12 +697,12 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:selected_obj_color', this.setSelectedObjColor, this);
-        this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
+        //this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
         this.model.on('change:show_marker', this.setMarkerVisible, this);
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
-        this.model.on('change:vector_scaling', this.setFieldScaling, this);
+        //this.model.on('change:vector_scaling', this.setFieldScaling, this);
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
@@ -754,7 +738,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         cam.setFocalPoint(0, 0, 0);
         cam.setViewUp(vu[0], vu[1], vu[2]);
         r.resetCamera();
-        cam.zoom(1.3);
+        //cam.zoom(1.3);
         this.orientationMarker.updateMarkerOrientation();
         this.fsRenderer.getRenderWindow().render();
     },
@@ -831,6 +815,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
+    /*
     setFieldColorMap: function() {
         let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
@@ -899,7 +884,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         $(this.el).find('.vector-field-indicator').css('left', '25px');
         $(this.el).find('.vector-field-indicator-value').text(val);
     },
-
+*/
     setMarkerVisible: function() {
         this.orientationMarker.setEnabled(this.model.get('show_marker'));
         this.fsRenderer.getRenderWindow().render();

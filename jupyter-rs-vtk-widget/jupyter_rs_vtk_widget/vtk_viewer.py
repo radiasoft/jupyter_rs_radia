@@ -5,6 +5,7 @@ import traitlets
 
 from jupyter_rs_vtk_widget import gui_utils
 from jupyter_rs_vtk_widget import rs_utils
+from jupyter_rs_vtk_widget import vtk_utils
 from traitlets import Any, Bool, Dict, Float, Instance, Integer, List, Unicode
 
 
@@ -69,28 +70,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     _dirs = [u'\u2299', u'\u29bb']
 
     external_props = Dict(default_value={}).tag(sync=True)
-    external_prop_map = {
-        'field_color_maps': {
-            'obj': 'field_color_map_list',
-            'attr': 'options'
-        },
-        'field_color_map_name': {
-            'obj': 'field_color_map_list',
-            'attr': 'value'
-        },
-        'vector_scaling_types': {
-            'obj': 'vector_scaling_list',
-            'attr': 'options'
-        },
-        'vector_scaling': {
-            'obj': 'vector_scaling_list',
-            'attr': 'value'
-        },
-    }
-
-    # support more than 1 field?
-    field_color_maps = List(default_value=list()).tag(sync=True)
-    vector_scaling_types = List(default_value=list()).tag(sync=True)
+    external_prop_map = {}
 
     # add data param
     def display(self):
@@ -149,21 +129,14 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         # maps (-1, 1) to (0, 1)
         self.axis_btns[axis]['button'].description = axis + Viewer._dirs[int((1 - d) / 2)]
 
-    def _set_field_color_map(self, d):
-        self.content.field_color_map_name = d['new']
-
     def _set_external_props(self, d):
         self.external_props = d['new']
         for pn in self.external_prop_map:
             p = self.external_prop_map[pn]
             setattr(getattr(self, p['obj']), p['attr'], self.external_props[pn])
 
-    def _set_vector_scaling(self, d):
-        self.content.vector_scaling = d['new']
 
     def _update_layout(self):
-        self.vector_grp.layout.display =\
-            None if self._has_data_type(gui_utils.GL_TYPE_VECTS)else 'none'
         self.poly_alpha_grp.layout.display = \
             None if self._has_data_type(gui_utils.GL_TYPE_POLYS) else 'none'
 
@@ -181,13 +154,16 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         # don't initialize VTK with data - save until the view is ready
         self.content = VTK()
 
-        self.reset_btn = widgets.Button(description='Reset Camera')
+        self.reset_btn = widgets.Button(description='Reset Camera',
+                                        layout={'width': 'fit-content'})
         self.reset_btn.on_click(self._reset_view)
 
         self.axis_btns = {}
         for axis in Viewer._axes:
             self.axis_btns[axis] = {
-                'button': widgets.Button(),
+                'button': widgets.Button(
+                    layout={'width': 'fit-content'}
+                ),
                 'dir': 1
             }
             self._set_axis_btn_desc(axis)
@@ -223,29 +199,6 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             [widgets.Label('Object color'), self.obj_color_pick]
         )
 
-        # to be populated by the client
-        # this is radia-specific and should move there
-        self.field_color_map_list = widgets.Dropdown(
-            layout={'width': 'max-content'},
-        )
-
-        # the options/value of a dropdown are not syncable!  We'll work around it
-        self.field_color_map_list.observe(self._set_field_color_map, names='value')
-        field_map_grp = widgets.HBox(
-            [widgets.Label('Field Color Map'), self.field_color_map_list],
-        )
-
-        self.vector_scaling_list = widgets.Dropdown(
-            layout={'width': 'max-content'},
-        )
-
-        self.vector_scaling_list.observe(self._set_vector_scaling, names='value')
-        vector_scaling_grp = widgets.HBox(
-            [widgets.Label('Field Scaling'), self.vector_scaling_list]
-        )
-
-        self.vector_grp = widgets.HBox([field_map_grp, vector_scaling_grp])
-
         self.poly_alpha_slider = widgets.FloatSlider(
             min=0.0, max=1.0, step=0.05, value=self.content.poly_alpha
         )
@@ -254,7 +207,9 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         )
 
         view_props_grp = widgets.HBox(
-            [bg_color_pick_grp, obj_color_pick_grp, self.vector_grp, self.poly_alpha_grp,
+            [bg_color_pick_grp,
+             obj_color_pick_grp,
+             self.poly_alpha_grp,
              self.edge_toggle]
         )
 
@@ -290,14 +245,11 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
                 padding='6px'
             ))
 
-        #self.out = widgets.Output()
         self.on_displayed(self._viewer_displayed)
 
         # observe lists to be set as dropdown items
         self.observe(self._set_external_props, names='external_props')
-        #self.observe(self._handle_change, type=traitlets.All)
         super(Viewer, self).__init__(children=[
             self.content, view_cam_grp, view_props_grp,
-            #self.out
         ])
 

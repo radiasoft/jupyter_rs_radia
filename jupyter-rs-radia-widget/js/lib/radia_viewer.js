@@ -38,9 +38,15 @@ const RadiaViewerModel = controls.VBoxModel.extend({
     }),
 }, {});
 
+function rpv(o) {
+    rsUtils.rsdbg('rpv', o);
+    rsUtils.rsdbg('vtk widget', $(o.el).find('.vtk-widget'));
+}
+
 const RadiaViewerView = controls.VBoxView.extend({
 
     isLoaded: false,
+    vtkViewer: null,
 
     handleCustomMessages: function(msg) {
         if (msg.type === 'debug') {
@@ -55,8 +61,16 @@ const RadiaViewerView = controls.VBoxView.extend({
     render: function() {
         // this is effectively "super.render()"
         controls.VBoxView.prototype.render.apply((this));
-        let w = $(this.el).find('.vtk-widget');
-        rsUtils.rsdbg('wdiget', w);
+
+        // child views are Promises, must wait for them to resolve to
+        // select with jquery
+        //rsUtils.rsdbg('got children', this.children_views);
+        //for (let vx in this.children_views.views) {
+        //    this.children_views.views[vx].then(rpv);
+        //}
+
+        //let w = $(this.el).find('.vtk-widget');
+        //rsUtils.rsdbg('wdiget', w);
         $(this.el).find('.vtk-widget').append($(template));
 
         // store current settings in cookies?
@@ -80,6 +94,57 @@ const RadiaViewerView = controls.VBoxView.extend({
 
         // required to get the python model in sync right away
         this.touch();
+    },
+
+
+    setFieldColorMap: function() {
+        let mapName = this.model.get('field_color_map_name');
+        if (! mapName) {
+            rsUtils.rslog('setFieldColorMap: No color map');
+            return;
+        }
+        // send info to vtk - actor name, map name, formula function?
+        actor.getMapper().getInputConnection(0).filter
+            .setFormula(getVectFormula(this.model.get('model_data').data[0].vectors, mapName));
+        this.setFieldColorMapScale();
+    },
+
+    setFieldColorMapScale: function() {
+        let mapName = this.model.get('field_color_map_name');
+        if (! mapName) {
+            rsUtils.rslog('setFieldColorMapScale: No color map');
+            return;
+        }
+        let g = guiUtils.getColorMap(mapName, null, '#');
+        $(this.el).find('.vector-field-color-map')
+            .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
+    },
+
+    setFieldScaling: function() {
+        let vs = this.model.get('vector_scaling');
+         // send info to vtk - actor name, scaling type, scale factor?
+        //mapper.setScaleFactor(8.0);
+        //if (vs === 'Uniform') {
+        //    mapper.setScaleModeToScaleByConstant();
+       // }
+       // if (vs === 'Linear') {
+       //     mapper.setScaleArray(LINEAR_SCALE_ARRAY);
+        //    mapper.setScaleModeToScaleByComponents();
+        //}
+        //if (vs === 'Log') {
+        //    mapper.setScaleArray(LOG_SCALE_ARRAY);
+        //    mapper.setScaleModeToScaleByComponents();
+        //}
+    },
+
+
+    setFieldIndicator: function(val, min, max) {
+        let w = $(this.el).find('.vector-field-color-map').width();
+        let f = Math.abs(val / (max - min));
+        let l = w * f;
+        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'left', l);
+        $(this.el).find('.vector-field-indicator').css('left', '25px');
+        $(this.el).find('.vector-field-indicator-value').text(val);
     },
 
 });

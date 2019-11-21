@@ -1,14 +1,14 @@
 import numpy
 import radia
-import rs_widget_utils
 import sys
 
 from numpy import linalg
+from pykern.pkcollections import PKDict
 from pykern.pkdebug import pkdp
 from rs_widget_utils import gui_utils
 from rs_widget_utils import rs_utils
 
-class RadiaGeomMgr():
+class RadiaGeomMgr(rs_utils.RSDebugger):
     """Manager for multiple geometries (Radia objects)"""
 
     def _get_all_geom(self, geom):
@@ -21,12 +21,28 @@ class RadiaGeomMgr():
         return g_arr
 
     def add_geom(self, geom_name, geom):
-        self._geoms[geom_name] = geom
+        self._geoms[geom_name] = PKDict(g=geom, solved=False)
+
+    def is_geom_solved(self, geom_name):
+        return self.get_geom(geom_name).solved
+
+    # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
+    def mag_field_to_data(self, name, path):
+        pv_arr = []
+        p = numpy.reshape(path, (-1, 3)).tolist()
+        b = []
+        # get every component
+        for f in ['Bx', 'By', 'Bz']:
+            b.extend(radia.Fld(self.get_geom(name), f, path))
+        b = numpy.reshape(b, (-1, 3)).tolist()
+        for p_idx, pt in enumerate(p):
+            pv_arr.append([pt, b[p_idx]])
+        return self.vector_field_to_data(name, pv_arr)
 
     def magnetization_to_data(self, name):
         return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)))
 
-    # define send to satisfy RSDebugger - get web socket somehow?
+    # define send to satisfy RSDebugger - get web socket somehow instead?
     def send(self, msg):
         pkdp(msg)
 
@@ -72,7 +88,8 @@ class RadiaGeomMgr():
             d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(geom, 'Axes->No')))
         else:
             for g in radia.ObjCntStuf(geom):
-            #for g in self._get_all_geom(geom):
+            # for fully recursive array
+            # for g in self._get_all_geom(geom):
                 d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
 
         return {
@@ -81,7 +98,7 @@ class RadiaGeomMgr():
         }
 
     def get_geom(self, name):
-        return self._geoms[name]
+        return self._geoms[name].g
 
     def get_geom_list(self):
         return [n for n in self._geoms]
@@ -100,5 +117,5 @@ class RadiaGeomMgr():
             ctr['geoms'].append(g)
 
     def __init__(self):
-        self._geoms = {}
+        self._geoms = PKDict({})
 

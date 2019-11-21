@@ -82,6 +82,14 @@ def any_obj_has_data_type(gl_obj_arr, d_type):
     return any([_obj_has_data_type(o, d_type) for o in gl_obj_arr])
 
 
+def has_polys(gl_obj):
+    return _obj_has_data_type(gl_obj, GL_TYPE_POLYS)
+
+
+def has_vectors(gl_obj):
+    return _obj_has_data_type(gl_obj, GL_TYPE_VECTS)
+
+
 def new_gl_object():
     return PKDict(
         lines=PKDict(colors=[], lengths=[], vertices=[]),
