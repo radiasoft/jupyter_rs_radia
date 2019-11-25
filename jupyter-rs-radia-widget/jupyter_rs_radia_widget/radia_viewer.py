@@ -9,10 +9,19 @@ from jupyter_rs_radia_widget import radia_tk
 from jupyter_rs_vtk_widget import gui_utils
 from jupyter_rs_vtk_widget import vtk_viewer
 from numpy import linalg
+from pykern.pkcollections import  PKDict
+from pykern.pkdebug import pkdp, pkdlog
 from rs_widget_utils import rs_utils
 from traitlets import Any, Dict, Instance, List, Unicode
 
-DISPLAY_TYPES = ['Geom', 'Field']
+FIELD_TYPE_MAG_M = 'M'
+FIELD_TYPE_MAG_B = 'B'
+FIELD_TYPES = [FIELD_TYPE_MAG_M, FIELD_TYPE_MAG_B]
+
+VIEW_TYPE_OBJ = 'Objects'
+VIEW_TYPE_FIELD = 'Fields'
+VIEW_TYPES = [VIEW_TYPE_OBJ, VIEW_TYPE_FIELD]
+
 
 @widgets.register
 class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
@@ -24,121 +33,125 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
-    current_geom = Unicode('POOP').tag(sync=True)
+    _is_displayed = False
+
+    current_geom = Unicode('').tag(sync=True)
+    current_field_path = [0.0, 0.0, 0.0]
 
     field_color_map_name = Unicode('').tag(sync=True)
 
     external_props = Dict(default_value={}).tag(sync=True)
-    external_prop_map = {
-        'field_color_maps': {
-            'obj': 'field_color_map_list',
-            'attr': 'options'
-        },
-        'field_color_map_name': {
-            'obj': 'field_color_map_list',
-            'attr': 'value'
-        },
-        'vector_scaling_types': {
-            'obj': 'vector_scaling_list',
-            'attr': 'options'
-        },
-        'vector_scaling': {
-            'obj': 'vector_scaling_list',
-            'attr': 'value'
-        },
-    }
+    external_prop_map = PKDict(
+        field_color_maps=PKDict(obj='field_color_map_list', attr='options'),
+        field_color_map_name=PKDict(obj='field_color_map_list', attr='value'),
+        vector_scaling_types=PKDict(obj='vector_scaling_list', attr='options'),
+        vector_scaling=PKDict(obj='vector_scaling_list', attr='value'),
+    )
 
 
     field_color_maps = List(default_value=list()).tag(sync=True)
+    vector_scaling = Unicode('').tag(sync=True)
     vector_scaling_types = List(default_value=list()).tag(sync=True)
     vtk_viewer = None
 
-    # may be useful to talk to the vtk viewer
-    def _handle_msg(self, msg):
-        #self.rsdebug('GOT FRONT END MSG {}'.format(msg))
-        pass
-
-    def _has_data_type(self, d_type):
-        if self.model_data is None or 'data' not in self.model_data:
-            return False
-        return gui_utils.any_obj_has_data_type(
-                self.model_data['data'], d_type
-            )
-
     def _radia_displayed(self, o):
-        #self.rsdebug('RADIA ready')
+        self.rsdbg('RADIA ready {}'.format(self.external_props))
         #self.vtk_viewer.set_data(self.model_data)
+        #self.display(self.current_geom)
         self.geom_list.value = self.current_geom
-        pass
 
     def _set_current_geom(self, d):
         g_name = d['new']
-        self.current_geom = g_name  #self.mgr.get_geom(g_name)
+        self.current_geom = g_name
         self.display(g_name)
-        self._update_layout()
 
     def _set_external_props(self, d):
+        #self.rsdbg('setting ext props from {}'.format(d))
         self.external_props = d['new']
         for pn in self.external_prop_map:
             p = self.external_prop_map[pn]
-            setattr(getattr(self, p['obj']), p['attr'], self.external_props[pn])
+            setattr(getattr(self, p.obj), p.attr, self.external_props[pn])
 
     def _set_field_color_map(self, d):
         self.field_color_map_name = d['new']
 
     def _set_vector_scaling(self, d):
-        self.content.vector_scaling = d['new']
+        self.vector_scaling = d['new']
 
     def _solve(self, b):
-        self.rsdebug('solve prec {} iter {} meth {}'.format(self.solve_prec.value, self.solve_max_iter.value, self.solve_method.value))
-        #res = rad.Solve(
-        #    self.current_geom,
-        #    self.solve_prec.value,
-        #    self.solve_max_iter.value,
-        #    int(self.solve_method.value)
-        #)
+        self.rsdbg('solve prec {} iter {} meth {}'.format(self.solve_prec.value, self.solve_max_iter.value, self.solve_method.value))
+        res = rad.Solve(
+            self.mgr.get_geom(self.current_geom),
+            self.solve_prec.value,
+            self.solve_max_iter.value,
+            self.solve_method.value
+        )
+        self.display()
 
     # show/hide/enable/disable controls based on current state
     def _update_layout(self):
-        self.vector_grp.layout.display =\
-            None if self._has_data_type(gui_utils.GL_TYPE_VECTS) else 'none'
+        self.vector_grp.layout.display = \
+            None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
         self.field_type_list.layout.display =\
-            None if self.data_type_list.value == 'Field' else 'none'
+            None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
 
     def _update_viewer(self, d):
+        self.display(self.current_geom)
+
+    def add_geom(self, geom_name, geom):
+        self.mgr.add_geom(geom_name, geom)
+        self.geom_list.options = [n for n in self.mgr.get_geoms()]
+
+    # 'API' calls should support 'command line' style of invocation, and not
+    # rely solely on current widget settings
+    def display(self, g_name=None, v_type=None, f_type=None):
         self._update_layout()
-
-
-    # needs to handle vector fields in addition to geometries
-    def display(self, g_name, d_type='Geom'):
-        if d_type not in DISPLAY_TYPES:
-            raise ValueError('Invalid display type {}'.format(d_type))
+        if g_name is None:
+            g_name = self.current_geom
         self.current_geom = g_name
-        self.model_data = self.mgr.geom_to_data(g_name)
-        # one or the other of these?
+        #self.rsdbg('Display 1 g {} view {} field {} props {}'.format(g_name, v_type, f_type, self.external_props))
+        v_type = self.view_type_list.value if v_type is None else v_type
+        f_type = self.field_type_list.value if f_type is None else f_type
+        self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
+        if v_type not in VIEW_TYPES:
+            raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
+        if f_type not in FIELD_TYPES:
+            raise ValueError('Invalid field {} ({})'.format(f_type, FIELD_TYPES))
+        if v_type == VIEW_TYPE_OBJ:
+            self.model_data = self.mgr.geom_to_data(g_name)
+        elif v_type == VIEW_TYPE_FIELD:
+            if f_type == FIELD_TYPE_MAG_M:
+                self.model_data = self.mgr.magnetization_to_data(g_name)
+            elif f_type == FIELD_TYPE_MAG_B:
+                self.rsdbg('display b field')
+                self.model_data = self.mgr.mag_field_to_data(
+                    g_name,
+                    self.current_field_path
+                )
+                self.rsdbg('got b data {}'.format(self.model_data))
+        #self.rsdbg('setting data fot vtk {}'.format(self.model_data))
         self.vtk_viewer.set_data(self.model_data)
-        #self.vtk_viewer.add_obj(self.model_data)
         return self
 
     def __init__(self, mgr=None):
         self.model_data = {}
         self.mgr = radia_tk.RadiaGeomMgr() if mgr is None else mgr
         self.on_displayed(self._radia_displayed)
-        self.on_msg(self._handle_msg)
         self.vtk_viewer = vtk_viewer.Viewer()
 
-        self.data_type_list = widgets.Dropdown(
+        self.view_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
-            options=['Object', 'Field'],
+            options=VIEW_TYPES,
             description='View',
         )
-        self.data_type_list.observe(self._update_viewer, names='value')
+        self.view_type_list.observe(self._update_viewer, names='value')
 
         self.field_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
-            options=['M', 'B'],
+            options=FIELD_TYPES,
             description='Field',
         )
+        self.field_type_list.observe(self._update_viewer, names='value')
 
         self.geom_list = widgets.Dropdown(
             layout={'width': 'max-content'},
@@ -149,12 +162,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             [widgets.Label('Geometry'), self.geom_list],
         )
 
-        self.geom_grp = widgets.HBox([
-            geom_list_grp,
-            self.data_type_list,
-            self.field_type_list
-        ])
-
         # to be populated by the client
         self.field_color_map_list = widgets.Dropdown(
             layout={'width': 'max-content'},
@@ -162,20 +169,25 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 
         # the options/value of a dropdown are not syncable!  We'll work around it
         self.field_color_map_list.observe(self._set_field_color_map, names='value')
+
         field_map_grp = widgets.HBox(
-            [widgets.Label('Field Color Map'), self.field_color_map_list],
+            [widgets.Label('Color Map'), self.field_color_map_list],
         )
 
         self.vector_scaling_list = widgets.Dropdown(
             layout={'width': 'max-content'},
         )
-
         self.vector_scaling_list.observe(self._set_vector_scaling, names='value')
+
         vector_scaling_grp = widgets.HBox(
-            [widgets.Label('Field Scaling'), self.vector_scaling_list]
+            [widgets.Label('Scaling'), self.vector_scaling_list]
         )
 
-        self.vector_grp = widgets.HBox([field_map_grp, vector_scaling_grp])
+        self.vector_grp = widgets.HBox([
+            self.field_type_list,
+            field_map_grp,
+            vector_scaling_grp
+        ])
 
         self.solve_prec = widgets.BoundedFloatText(value=0.0001, min=1e-06, max=10.0,
                                                   description='Precision (T)')
@@ -184,8 +196,8 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.solve_method = widgets.Dropdown(
             layout={'width': 'max-content'},
             description='Method',
-            value='0',
-            options=['0', '3', '4', '5']
+            value=0,
+            options=[('0', 0), ('3', 3), ('4', 4), ('5', 5)]
         )
         self.solve_btn = widgets.Button(description='Solve',
                                         layout={'width': 'fit-content'})
@@ -199,10 +211,17 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             self.solve_btn
         ])
 
+        self.geom_grp = widgets.HBox([
+            geom_list_grp,
+            self.view_type_list,
+            self.vector_grp
+            #self.field_type_list
+        ])
+
         self.observe(self._set_external_props, names='external_props')
         super(RadiaViewer, self).__init__(children=[
             self.vtk_viewer,
-            self.vector_grp,
+            #self.vector_grp,
             self.geom_grp,
             self.solve_grp,
             #self.solve_btn

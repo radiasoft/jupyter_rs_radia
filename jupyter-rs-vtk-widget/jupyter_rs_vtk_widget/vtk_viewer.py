@@ -22,17 +22,22 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     # marking fields that should move to radia
     bg_color = widgets.Color('#ffffff').tag(sync=True)
     selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
-    # support more than 1 field?
-    #field_color_map_name = Unicode('').tag(sync=True)  # radia ("vector_color_map")
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
-    #vector_scaling = Unicode('').tag(sync=True)  # radia
+
+    def refresh(self):
+        self.send({'type': 'refresh'})
+
+    def set_data(self, d):
+        self.model_data = d
+        self.refresh()
 
     def set_title(self, t):
         self.title = t
+        self.comm
 
     @traitlets.default('layout')
     def _default_layout(self):
@@ -43,8 +48,7 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
         )
 
     def _vtk_displayed(self, o):
-        #self.rsdebug('VTK ready')
-        pass
+        self.refresh()
 
     def __init__(self, title='', bg_color='#ffffff', data=None):
         self.model_data = {} if data is None else data
@@ -76,10 +80,15 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def display(self):
         return self
 
+    def refresh(self):
+        self.content.send({'type': 'refresh'})
+
     def set_data(self, data):
         # keep a local reference to the data for handlers
+        #self.rsdbg('vtk setting data {}'.format(data))
         self.model_data = data
-        self.content.model_data = data
+        #self.content.model_data = data
+        self.content.set_data(self.model_data)
         self._update_layout()
 
     # several test modes?  polyData, built-in vtk sources, etc.
@@ -91,7 +100,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         return widgets.Layout(align_self='stretch')
 
     def _handle_change(self, change):
-        self.rsdebug('{}'.format(change))
+        self.rsdbg('{}'.format(change))
 
     def _has_data_type(self, d_type):
         if self.model_data is None or 'data' not in self.model_data:
@@ -135,7 +144,6 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             p = self.external_prop_map[pn]
             setattr(getattr(self, p['obj']), p['attr'], self.external_props[pn])
 
-
     def _update_layout(self):
         self.poly_alpha_grp.layout.display = \
             None if self._has_data_type(gui_utils.GL_TYPE_POLYS) else 'none'
@@ -143,8 +151,8 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
         # but we need the widget to be ready first
+        #self.rsdbg('VIEWER ready data {}'.format(self.model_data))
         self.set_data(self.model_data)
-        #self.rsdebug('VIEWER ready')
 
     def __init__(self, data=None):
         if data is None:

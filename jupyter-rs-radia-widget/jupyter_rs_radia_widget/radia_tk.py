@@ -8,6 +8,7 @@ from pykern.pkdebug import pkdp
 from rs_widget_utils import gui_utils
 from rs_widget_utils import rs_utils
 
+
 class RadiaGeomMgr(rs_utils.RSDebugger):
     """Manager for multiple geometries (Radia objects)"""
 
@@ -37,6 +38,8 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         b = numpy.reshape(b, (-1, 3)).tolist()
         for p_idx, pt in enumerate(p):
             pv_arr.append([pt, b[p_idx]])
+        self.rsdbg('get data from mag field {}'.format(pv_arr))
+        pkdp('get data from mag field {}', pv_arr)
         return self.vector_field_to_data(name, pv_arr)
 
     def magnetization_to_data(self, name):

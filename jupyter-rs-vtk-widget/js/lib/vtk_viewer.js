@@ -279,6 +279,14 @@ var VTKView = widgets.DOMWidgetView.extend({
     ptPicker: null,
     selectedObject: null,
 
+    // this object to be populated externally
+    vectFormula: {
+        getArrays: function (input) {
+            return vectArrays;
+        },
+        evaluate: function (input, output) {}
+    },
+
     // stash the actor and associated info to avoid recalculation
     addActor: function(name, actor, pickable) {
         if (! this.fsRenderer) {
@@ -391,8 +399,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         if (msg.type === 'refresh') {
-            rsUtils.rsdbg('msg rfrs');
-            //this.refresh();
+            this.refresh();
         }
 
         if (msg.type === 'reset') {
@@ -488,7 +495,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                     }
                     if (info.type === GEOM_SURFACE_ACTOR) {
 
-                        // toggle -- does not work if new data is loaded...
                         if (actor === view.selectedObject) {
                             view.selectedObject = null;
                         }
@@ -502,7 +508,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                         let cellPts = info.pData.getCellPoints(cid);
                         let ct = cellPts.cellType;
                         if (info.linePolyMap[cid]) {
-                            //rsUtils.rsdbg(info.name, 'using poly', info.linePolyMap[cid]);
                             cid = info.linePolyMap[cid];
                             ct = vtk.Common.DataModel.vtkCell.VTK_POLYGON  // use matching poly
                         }
@@ -510,7 +515,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                         if (ct === vtk.Common.DataModel.vtkCell.VTK_LINE || ct === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE ) {
                             let j = info.lineIndices[cid];
                             selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
-                            //rsUtils.rsdbg(info.name, 'line tup', cid, selectedColor);
                         }
                         else {
                             let j = info.polyIndices[cid];
@@ -635,6 +639,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);
                 let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
                 vectorCalc.setFormula(getVectFormula(vectors, this.model.get('field_color_map_name')));
+                //vectorCalc.setFormula(this.getVectFormula(vectors, this.model.get('field_color_map_name')));
                 vectorCalc.setInputData(vData);
 
                 let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
@@ -694,7 +699,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         // store current settings in cookies?
         //let c = document.cookie;
         //rsUtils.rsdbg('cookies', c);
-        this.model.on('change:model_data', this.refresh, this);
+        //this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:selected_obj_color', this.setSelectedObjColor, this);
         //this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
@@ -815,29 +820,32 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
-    /*
-    setFieldColorMap: function() {
+
+    //setFieldColorMap: function() {
+    setFieldColorMap: function(mapName) {
         let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
-        let mapName = this.model.get('field_color_map_name');
+        //let mapName = this.model.get('field_color_map_name');
         if (! mapName) {
             rsUtils.rslog('setFieldColorMap: No color map');
             return;
         }
         actor.getMapper().getInputConnection(0).filter
             .setFormula(getVectFormula(this.model.get('model_data').data[0].vectors, mapName));
-        this.setFieldColorMapScale();
+        //this.setFieldColorMapScale();
+        //this.setFieldColorMapScale(mapName);
         this.fsRenderer.getRenderWindow().render();
     },
 
-    setFieldColorMapScale: function() {
+    //setFieldColorMapScale: function() {
+    setFieldColorMapScale: function(mapName) {
         let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
-        let mapName = this.model.get('field_color_map_name');
+        //let mapName = this.model.get('field_color_map_name');
         if (! mapName) {
             rsUtils.rslog('setFieldColorMapScale: No color map');
             return;
@@ -847,12 +855,14 @@ var VTKView = widgets.DOMWidgetView.extend({
             .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
     },
 
-    setFieldScaling: function() {
+    //setFieldScaling: function() {
+    setFieldScaling: function(vs) {
+        rsUtils.rsdbg('vtk set scaling', vs);
         let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         if (! actor) {
             return;
         }
-        let vs = this.model.get('vector_scaling');
+        //let vs = this.model.get('vector_scaling');
         let mapper = actor.getMapper();
         //rsUtils.rsdbg('bounds', mapper.getBounds());
         // use bounds
@@ -884,7 +894,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         $(this.el).find('.vector-field-indicator').css('left', '25px');
         $(this.el).find('.vector-field-indicator-value').text(val);
     },
-*/
+
     setMarkerVisible: function() {
         this.orientationMarker.setEnabled(this.model.get('show_marker'));
         this.fsRenderer.getRenderWindow().render();
@@ -915,6 +925,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     setTitle: function() {
         $(this.el).find('.viewer-title').text(this.model.get('title'));
     },
+
 
 });
 
@@ -957,7 +968,7 @@ var ViewerView = controls.VBoxView.extend({
         //});
 
         // required to get the python model in sync right away
-        ///this.touch();
+        //this.touch();
 
     }
 });
