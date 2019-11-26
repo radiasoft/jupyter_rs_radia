@@ -6,6 +6,7 @@ import traitlets
 from jupyter_rs_vtk_widget import gui_utils
 from jupyter_rs_vtk_widget import rs_utils
 from jupyter_rs_vtk_widget import vtk_utils
+from pykern.pkcollections import PKDict
 from traitlets import Any, Bool, Dict, Float, Instance, Integer, List, Unicode
 
 
@@ -19,7 +20,6 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
-    # marking fields that should move to radia
     bg_color = widgets.Color('#ffffff').tag(sync=True)
     selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
@@ -27,6 +27,7 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)
+    vector_color_map_name = Unicode('').tag(sync=True)
 
     def refresh(self):
         self.send({'type': 'refresh'})
@@ -37,7 +38,6 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
 
     def set_title(self, t):
         self.title = t
-        self.comm
 
     @traitlets.default('layout')
     def _default_layout(self):
@@ -73,8 +73,8 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     # "into the screen", "out of the screen"
     _dirs = [u'\u2299', u'\u29bb']
 
-    external_props = Dict(default_value={}).tag(sync=True)
-    external_prop_map = {}
+    client_props = Dict(default_value={}).tag(sync=True)
+    client_prop_map = PKDict()
 
     # add data param
     def display(self):
@@ -114,7 +114,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
         # this turns into an event of type "msg:custom" with the dict attached
         # in the view add this.listenTo(this.model, "msg:custom", <handler>)
         for axis in Viewer._axes:
-            self.axis_btns[axis]['dir'] = 1
+            self.axis_btns[axis].dir = 1
             self._set_axis_btn_desc(axis)
 
         self.content.send({'type': 'reset'})
@@ -130,19 +130,19 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             'axis': a,
             'dir': d
         })
-        self.axis_btns[a]['dir'] = -1 * d
+        self.axis_btns[a].dir = -1 * d
         self._set_axis_btn_desc(a)
 
     def _set_axis_btn_desc(self, axis):
-        d = self.axis_btns[axis]['dir']
+        d = self.axis_btns[axis].dir
         # maps (-1, 1) to (0, 1)
-        self.axis_btns[axis]['button'].description = axis + Viewer._dirs[int((1 - d) / 2)]
+        self.axis_btns[axis].button.description = axis + Viewer._dirs[int((1 - d) / 2)]
 
-    def _set_external_props(self, d):
-        self.external_props = d['new']
-        for pn in self.external_prop_map:
-            p = self.external_prop_map[pn]
-            setattr(getattr(self, p['obj']), p['attr'], self.external_props[pn])
+    def _set_client_props(self, d):
+        self.client_props = d['new']
+        for pn in self.client_prop_map:
+            p = self.client_prop_map[pn]
+            setattr(getattr(self, p['obj']), p['attr'], self.client_props[pn])
 
     def _update_layout(self):
         self.poly_alpha_grp.layout.display = \
@@ -166,16 +166,16 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
                                         layout={'width': 'fit-content'})
         self.reset_btn.on_click(self._reset_view)
 
-        self.axis_btns = {}
+        self.axis_btns = PKDict()
         for axis in Viewer._axes:
-            self.axis_btns[axis] = {
-                'button': widgets.Button(
+            self.axis_btns[axis] = PKDict(
+                button=widgets.Button(
                     layout={'width': 'fit-content'}
                 ),
-                'dir': 1
-            }
+                dir=1
+            )
             self._set_axis_btn_desc(axis)
-            self.axis_btns[axis]['button'].on_click(self._set_axis)
+            self.axis_btns[axis].button.on_click(self._set_axis)
 
         self.orientation_toggle = widgets.Checkbox(value=True, description='Show marker')
         self.edge_toggle = widgets.Checkbox(value=True, description='Show edges')
@@ -255,8 +255,15 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
         self.on_displayed(self._viewer_displayed)
 
-        # observe lists to be set as dropdown items
-        self.observe(self._set_external_props, names='external_props')
+        # for enabling/disabling as a whole
+        self.controls = [
+            self.bg_color_pick,
+            self.obj_color_pick,
+            self.poly_alpha_slider,
+            self.reset_btn,
+        ].extend([self.axis_btns[ax].button for ax in self.axis_btns])
+
+        self.observe(self._set_client_props, names='client_props')
         super(Viewer, self).__init__(children=[
             self.content, view_cam_grp, view_props_grp,
         ])

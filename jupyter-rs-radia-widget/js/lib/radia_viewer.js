@@ -7,23 +7,26 @@ let widgets = require('@jupyter-widgets/base');
 
 const template = [
     '<div class="radia-viewer">',
-    '<div class="vector-field-color-map-content">',
-        '<div class="vector-field-indicator">',
-            '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
-            '<span class="vector-field-indicator-value">0</span>',
-        '</div>',
-        '<div class="vector-field-color-map" style="height: 32px;"></div>',
-        '<div class="vector-field-color-map-axis" style="height: 32px;">',
-            '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-                '<span>0.0</span>',
-                '<span>0.2</span>',
-                '<span>0.4</span>',
-                '<span>0.6</span>',
-                '<span>0.8</span>',
-                '<span>1.0</span>',
+        '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
+        '<div class="vector-field-color-map-content" style="display: none;">',
+            '<div class="vector-field-indicator">',
+                //'<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
+                '<span class="vector-field-indicator-value">0</span>',
+            '</div>',
+            '<div class="vector-field-color-map" style="height: 32px;">',
+                '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
+            '</div>',
+            '<div class="vector-field-color-map-axis" style="height: 32px;">',
+                '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
+                    '<span>0.0</span>',
+                    '<span>0.2</span>',
+                    '<span>0.4</span>',
+                    '<span>0.6</span>',
+                    '<span>0.8</span>',
+                    '<span>1.0</span>',
+                '</div>',
             '</div>',
         '</div>',
-    '</div>',
     '</div>',
 ].join('');
 
@@ -39,11 +42,6 @@ const RadiaViewerModel = controls.VBoxModel.extend({
 }, {});
 
 function getVTKView(o) {
-    //rsUtils.rsdbg('rpv', o);
-    //let w = $(o.el).find('.vtk-widget');
-    //if (w.length) {
-    //    return w;
-    //}
     if ((o.model || {}).name === 'VTKModel') {
         return o;
     }
@@ -63,14 +61,54 @@ const RadiaViewerView = controls.VBoxView.extend({
     vtkViewer: null,
     vtkViewerEl: null,
 
+    getVectors: function() {
+        return ((this.model.get('model_data').data || [])[0] || {}).vectors;
+    },
+
     handleCustomMessages: function(msg) {
         if (msg.type === 'debug') {
             rsUtils.rsdbg(msg.msg);
         }
+
+        if (msg.type === 'refresh') {
+            this.refresh();
+        }
+    },
+
+    // have to return a function constructed with this viewer, otherwise "this" will refer to
+    // the child viewer
+    processPickedValue: function(viewer) {
+        return function (val) {
+            let v = viewer.getVectors();
+            rsUtils.rsdbg('radia processPickedValue', v);
+            viewer.setFieldIndicator(val, v.range[0], v.range[1]);
+        };
     },
 
     refresh: function() {
+        $(this.el).find('.vector-field-color-map-content').css(
+            'display', 'none');
+        let vectors = this.getVectors();
+        if (! vectors) {
+            return;
+        }
 
+        //TODO(mvk): real axis with tick marks, labels, etc.
+        $(this.el).find('.vector-field-color-map-content').css(
+            'display', 'block'
+        );
+        let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
+        let numTicks = fieldTicks.length;
+        if (numTicks >= 2) {
+            let minV = vectors.range[0];
+            let maxV = vectors.range[1];
+            fieldTicks[0].textContent = ('' + minV).substr(0, 4);
+            fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
+            let dv = (maxV - minV) / (numTicks - 1);
+            for (let i = 1; i < numTicks - 1; ++i) {
+                fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
+            }
+        }
     },
 
     render: function() {
@@ -84,45 +122,9 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewer = o;
             view.vtkViewerEl = $(view.vtkViewer.el).find('.vtk-widget');
             view.vtkViewerEl.append($(template));
-            rsUtils.rsdbg('got vtkViewer', view.vtkViewer);
 
-            /*
-            this.vtkViewer.vectFormula.evaluate = function (arraysIn, arraysOut) {
-                let coords = arraysIn.map(function (d) {
-                    return d.getData();
-                })[0];
-                let o = arraysOut.map(function (d) {
-                    return d.getData();
-                });
-                // note these arrays already have the correct length, so we need to set elements, not append
-                let orientation = o[getVectOutIndex(ORIENTATION_ARRAY)];
-                let linScale = o[getVectOutIndex(LINEAR_SCALE_ARRAY)].fill(1.0);
-                let logScale = o[getVectOutIndex(LOG_SCALE_ARRAY)].fill(1.0);
-                let scalars = o[getVectOutIndex(SCALAR_ARRAY)];
-
-                for (let i = 0; i < coords.length / 3; i += 1) {
-                    let c = [0, 0, 0];
-                    if (cmap.length) {
-                        let cIdx = Math.floor(norms[i] * (cmap.length - 1));
-                        c = guiUtils.rgbFromColor(cmap[cIdx], 1.0);
-                    }
-                    // scale arrow length (object-local x-direction) only
-                    // this can stretch/squish the arrowhead though so the actor may have to adjust the ratio
-                    linScale[3 * i] = vectors.magnitudes[i];
-                    logScale[3 * i] = logMags[i];
-                    for (let j = 0; j < 3; ++j) {
-                        const k = 3 * i + j;
-                        orientation[k] = vectors.directions[k];
-                        scalars[k] = c[j];
-                    }
-                }
-
-                // Mark the output vtkDataArray as modified
-                arraysOut.forEach(function (x) {
-                    x.modified();
-                });
-            }
-             */
+            view.vtkViewer.processPickedValue = view.processPickedValue(view);
+            //view.setFieldColorMap();
         });
 
         // store current settings in cookies?
@@ -131,13 +133,14 @@ const RadiaViewerView = controls.VBoxView.extend({
 
         //this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
-        this.model.on('change:title', this.refresh, this);
+        this.model.on('change:title', this.setTitle, this);
         this.model.on('change:vector_scaling', this.setFieldScaling, this);
 
         this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
 
         // set dropdown contents and initial values
-        this.model.set('external_props', {
+        // change to "schema?"
+        this.model.set('client_props', {
             field_color_maps: guiUtils.getColorMaps(),
             field_color_map_name: 'viridis',
             vector_scaling_types: ['Uniform', 'Linear', 'Log'],
@@ -155,10 +158,6 @@ const RadiaViewerView = controls.VBoxView.extend({
             rsUtils.rslog('setFieldColorMap: No color map');
             return;
         }
-        this.vtkViewer.setFieldColorMap(mapName);
-        // send info to vtk - actor name, map name, formula function?
-        //actor.getMapper().getInputConnection(0).filter
-        //    .setFormula(getVectFormula(this.model.get('model_data').data[0].vectors, mapName));
         this.setFieldColorMapScale();
     },
 
@@ -168,26 +167,27 @@ const RadiaViewerView = controls.VBoxView.extend({
             rsUtils.rslog('setFieldColorMapScale: No color map');
             return;
         }
-        //this.vtkViewer.setFieldColorMap(mapName);
         let g = guiUtils.getColorMap(mapName, null, '#');
         $(this.el).find('.vector-field-color-map')
             .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
     },
 
     setFieldScaling: function() {
-        let vs = this.model.get('vector_scaling');
-        rsUtils.rsdbg('radia set fs to', vs);
-        this.vtkViewer.setFieldScaling(vs);
+        this.vtkViewer.setVectorScaling(this.model.get('vector_scaling'));
     },
-
 
     setFieldIndicator: function(val, min, max) {
         let w = $(this.el).find('.vector-field-color-map').width();
+        let iw = $(this.el).find('.vector-field-indicator-pointer').width();
         let f = Math.abs(val / (max - min));
-        let l = w * f;
-        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'left', l);
-        $(this.el).find('.vector-field-indicator').css('left', '25px');
+        let l = w * f;  // - 0.5 * iw;
+        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l);
+        $(this.el).find('.vector-field-indicator-pointer').css('margin-left', (l + 'px'));
         $(this.el).find('.vector-field-indicator-value').text(val);
+    },
+
+    setTitle: function() {
+        $(this.el).find('.radia-viewer-title').text(this.model.get('title'));
     },
 
 });

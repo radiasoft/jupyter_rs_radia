@@ -9,6 +9,12 @@ const TYPE_LINE =  Math.pow(2, GL_TYPES.indexOf('lines'));  // 2;
 const TYPE_POLY = Math.pow(2, GL_TYPES.indexOf('polygons'));  //1;
 const TYPE_VECT = Math.pow(2, GL_TYPES.indexOf('vectors'));  //4;
 
+function pickPoint(customFn) {
+
+
+    customFn();
+}
+
 function getTestBox() {
     let s = vtk.Filters.Sources.vtkCubeSource.newInstance({
         xLength: 20, yLength: 20, zLength: 20,
@@ -80,7 +86,7 @@ function objToPolyData(json, typeMask, addNormals) {
         }
 
         let t = json[type];
-        if (!t) {
+        if (! t || json[type].vertices.length === 0) {
             rsUtils.rsdbg('No data for requested type', type);
             return;
         }

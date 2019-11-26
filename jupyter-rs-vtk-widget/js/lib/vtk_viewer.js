@@ -299,7 +299,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             throw new Error('Actor ' + name + ' has no mapper or data');
         }
 
-        rsUtils.rsdbg('adding actor', name);
+        rsUtils.rsdbg('adding actor', name, actor);
         let pData = actor.getMapper().getInputData();
 
         let info = {
@@ -408,6 +408,11 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     },
 
+
+    processPickedColor: function(c) {},
+
+    processPickedValue: function(v) {},
+
     //
     setData: function(d) {
         this.model.set('model_data', d);
@@ -416,7 +421,6 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     refresh: function(o) {
 
-        //rsUtils.rsdbg('refresh');
         const view = this;
 
         this.selectedObject = null;
@@ -426,7 +430,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             });
             // parent to supply?
             this.fsRenderer.getRenderWindow().getInteractor().onLeftButtonPress(function (callData) {
-                let  r = view.fsRenderer.getRenderer();
+                let r = view.fsRenderer.getRenderer();
                 if (r !== callData.pokedRenderer) {
                     return;
                 }
@@ -436,7 +440,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                     return;
                 }
 
-                //view.selectedObject = null;
                 const pos = callData.position;
                 const point = [pos.x, pos.y, 0.0];
                 view.ptPicker.pick(point, r);
@@ -447,32 +450,31 @@ var VTKView = widgets.DOMWidgetView.extend({
                 // we may get multiple actors
                 let cid = view.cPicker.getCellId();
                 //rsUtils.rsdbg('Picked pt', point);
-                //rsUtils.rsdbg('Picked pt at', pres, 'id', pid);
+                rsUtils.rsdbg('Picked pt at', 'pid', pid);
                 rsUtils.rsdbg('Picked cell at', 'cid', cid);
-                //if (pid < 0) {
-                //    return;
-                //}
 
                 let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
-                if (! picker) {
+                //if (! picker) {
+                if (cid < 0 && pid < 0) {
                     rsUtils.rsdbg('Pick failed');
                     return;
                 }
 
                 let pas = picker.getActors();
-                let posArr = view.cPicker.getPickedPositions();
-                rsUtils.rsdbg('pas', pas, 'positions', posArr);
+                //let posArr = view.cPicker.getPickedPositions();
+                //rsUtils.rsdbg('pas', pas, 'positions', posArr);
                 //TODO(mvk): need to get actor closest to the "screen" based on the selected points
 
                 let selectedColor = [];
+                let selectedValue = Number.NaN;
                 for (let aIdx in pas) {
                     let actor = pas[aIdx];
                     //view.selectedObject = actor;
 
-                    let pos = posArr[aIdx];
+                    //let pos = posArr[aIdx];
                     let info = view.getInfoForActor(actor);
+                    rsUtils.rsdbg('actor', actor, 'info', info);
                     if (! info.pData) {
-                        // actor color?
                         continue;
                     }
 
@@ -490,6 +492,8 @@ var VTKView = widgets.DOMWidgetView.extend({
                         let d = linArr.getData();
                         let m = d[pid * linArr.getNumberOfComponents()];
                         rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
+                        selectedValue = m;
+                        view.processPickedValue(selectedValue);
                         //view.setFieldIndicator(m, d[0], d[d.length - 1]);
                         continue;
                     }
@@ -553,7 +557,15 @@ var VTKView = widgets.DOMWidgetView.extend({
                     let a = view.getActor(name);
                     view.setEdgeColor(a, a === view.selectedObject ? [0, 255, 255] : [0, 0, 0]);
                 }
+                //view.processPickedColor(selectedColor);
+
+                //if (! isNaN(selectedValue)) {
+                //    rsUtils.rsdbg('vtk processPickedValue');
+                //    view.processPickedValue(selectedValue);
+                //}
+
             });
+
             this.setBgColor();
             this.setEdgesVisible();
         }
@@ -589,8 +601,6 @@ var VTKView = widgets.DOMWidgetView.extend({
             //this.cPicker.initializePickList();
         }
 
-        $(this.el).find('.vector-field-color-map-content').css('display', 'none');
-
         let sceneData = this.model.get('model_data');
         if ($.isEmptyObject(sceneData)) {
             rsUtils.rslog('No data');
@@ -621,6 +631,8 @@ var VTKView = widgets.DOMWidgetView.extend({
 
             let sceneDatum = data[i];
             let bounds = vtkUtils.objBounds(sceneDatum);
+            // specify which types to include externally
+            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY | vtkUtils.TYPE_LINE);
             let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
             const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
                 static: true
@@ -638,8 +650,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             if (vectors && vectors.vertices.length) {
                 let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);
                 let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
-                vectorCalc.setFormula(getVectFormula(vectors, this.model.get('field_color_map_name')));
-                //vectorCalc.setFormula(this.getVectFormula(vectors, this.model.get('field_color_map_name')));
+                vectorCalc.setFormula(getVectFormula(vectors, this.model.get('vector_color_map_name')));
                 vectorCalc.setInputData(vData);
 
                 let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
@@ -660,23 +671,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                 });
                 actor.getProperty().setLighting(false);
                 this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
-
-                $(this.el).find('.vector-field-color-map-content').css('display', 'block');
-                //this.setFieldColorMapScale();
-
-                //TODO(mvk): real axis with tick marks, labels, etc.
-                let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
-                let numTicks = fieldTicks.length;
-                if (numTicks >= 2) {
-                    let minV = vectors.range[0];  //Math.min.apply(null, vectors.magnitudes);
-                    let maxV = vectors.range[1];  //Math.max.apply(null, vectors.magnitudes);
-                    fieldTicks[0].textContent = ('' + minV).substr(0, 4);
-                    fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
-                    let dv = (maxV - minV) / (numTicks - 1);
-                    for (let i = 1; i < numTicks - 1; ++i) {
-                        fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
-                    }
-                }
             }
             for(let j = 0; j < 3; ++j) {
                 let k = 2 * j;
@@ -688,9 +682,12 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     removeActors: function() {
+        const view = this;
         let r = this.fsRenderer.getRenderer();
-        r.getActors().forEach(function(actor) {
-            r.removeActor(actor);
+        r.getActors().forEach(function(a) {
+            r.removeActor(a);
+            view.ptPicker.deletePickList(a);
+            view.cPicker.deletePickList(a);
         });
         this.actorInfo = {};
     },
@@ -702,12 +699,11 @@ var VTKView = widgets.DOMWidgetView.extend({
         //this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:selected_obj_color', this.setSelectedObjColor, this);
-        //this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
         this.model.on('change:show_marker', this.setMarkerVisible, this);
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
-        //this.model.on('change:vector_scaling', this.setFieldScaling, this);
+        this.model.on('change:vector_color_map_name', this.setVectorColorMap, this);
         if (! this.isLoaded) {
             $(this.el).append($(template));
             this.setTitle();
@@ -820,81 +816,6 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.fsRenderer.getRenderWindow().render();
     },
 
-
-    //setFieldColorMap: function() {
-    setFieldColorMap: function(mapName) {
-        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
-        if (! actor) {
-            return;
-        }
-        //let mapName = this.model.get('field_color_map_name');
-        if (! mapName) {
-            rsUtils.rslog('setFieldColorMap: No color map');
-            return;
-        }
-        actor.getMapper().getInputConnection(0).filter
-            .setFormula(getVectFormula(this.model.get('model_data').data[0].vectors, mapName));
-        //this.setFieldColorMapScale();
-        //this.setFieldColorMapScale(mapName);
-        this.fsRenderer.getRenderWindow().render();
-    },
-
-    //setFieldColorMapScale: function() {
-    setFieldColorMapScale: function(mapName) {
-        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
-        if (! actor) {
-            return;
-        }
-        //let mapName = this.model.get('field_color_map_name');
-        if (! mapName) {
-            rsUtils.rslog('setFieldColorMapScale: No color map');
-            return;
-        }
-        let g = guiUtils.getColorMap(mapName, null, '#');
-        $(this.el).find('.vector-field-color-map')
-            .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
-    },
-
-    //setFieldScaling: function() {
-    setFieldScaling: function(vs) {
-        rsUtils.rsdbg('vtk set scaling', vs);
-        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
-        if (! actor) {
-            return;
-        }
-        //let vs = this.model.get('vector_scaling');
-        let mapper = actor.getMapper();
-        //rsUtils.rsdbg('bounds', mapper.getBounds());
-        // use bounds
-        mapper.setScaleFactor(8.0);
-        if (vs === 'Uniform') {
-            mapper.setScaleModeToScaleByConstant();
-        }
-        if (vs === 'Linear') {
-            mapper.setScaleArray(LINEAR_SCALE_ARRAY);
-            mapper.setScaleModeToScaleByComponents();
-        }
-        if (vs === 'Log') {
-            mapper.setScaleArray(LOG_SCALE_ARRAY);
-            mapper.setScaleModeToScaleByComponents();
-        }
-        this.fsRenderer.getRenderWindow().render();
-    },
-
-
-    setFieldIndicator: function(val, min, max) {
-        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
-        if (! actor) {
-            return;
-        }
-        let w = $(this.el).find('.vector-field-color-map').width();
-        let f = Math.abs(val / (max - min));
-        let l = w * f;
-        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'left', l);
-        $(this.el).find('.vector-field-indicator').css('left', '25px');
-        $(this.el).find('.vector-field-indicator-value').text(val);
-    },
-
     setMarkerVisible: function() {
         this.orientationMarker.setEnabled(this.model.get('show_marker'));
         this.fsRenderer.getRenderWindow().render();
@@ -926,6 +847,44 @@ var VTKView = widgets.DOMWidgetView.extend({
         $(this.el).find('.viewer-title').text(this.model.get('title'));
     },
 
+    setVectorColorMap: function() {
+        const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        if (! actor) {
+            rsUtils.rslog('vtk setVectorColorMap: No vector actor');
+            return;
+        }
+        const mapName = this.model.get('vector_color_map_name');
+        if (! mapName) {
+            rsUtils.rslog('vtk setVectorColorMap: No color map');
+            return;
+        }
+        actor.getMapper().getInputConnection(0).filter
+            .setFormula(getVectFormula(this.model.get('model_data').data[0].vectors, mapName));
+        this.fsRenderer.getRenderWindow().render();
+    },
+
+    setVectorScaling: function(vs) {
+        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        if (! actor) {
+            return;
+        }
+        let mapper = actor.getMapper();
+        //rsUtils.rsdbg('bounds', mapper.getBounds());
+        // use bounds
+        mapper.setScaleFactor(8.0);
+        if (vs === 'Uniform') {
+            mapper.setScaleModeToScaleByConstant();
+        }
+        if (vs === 'Linear') {
+            mapper.setScaleArray(LINEAR_SCALE_ARRAY);
+            mapper.setScaleModeToScaleByComponents();
+        }
+        if (vs === 'Log') {
+            mapper.setScaleArray(LOG_SCALE_ARRAY);
+            mapper.setScaleModeToScaleByComponents();
+        }
+        this.fsRenderer.getRenderWindow().render();
+    },
 
 });
 
@@ -958,18 +917,6 @@ var ViewerView = controls.VBoxView.extend({
         controls.VBoxView.prototype.render.apply((this));
         this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
         //this.listenTo(this.model, 'all', this.handleMessage);
-
-        // set dropdown contents and initial values
-        //this.model.set('external_props', {
-        //    field_color_maps: guiUtils.getColorMaps(),
-        //    field_color_map_name: 'viridis',
-        //    vector_scaling_types: ['Uniform', 'Linear', 'Log'],
-        //    vector_scaling: 'Uniform',
-        //});
-
-        // required to get the python model in sync right away
-        //this.touch();
-
     }
 });
 
