@@ -67,7 +67,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.current_geom = g_name
         v_type = self.view_type_list.value if v_type is None else v_type
         f_type = self.field_type_list.value if f_type is None else f_type
-        self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
+        #self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
         if v_type not in VIEW_TYPES:
             raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
         if f_type not in FIELD_TYPES:
@@ -84,7 +84,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
                     self.current_field_path
                 )
                 self.rsdbg('got b data {}'.format(self.model_data))
-        self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
+        #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
         self.refresh()
         return self

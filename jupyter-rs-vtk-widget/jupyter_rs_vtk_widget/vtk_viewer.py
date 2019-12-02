@@ -146,7 +146,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
     def _update_layout(self):
         self.poly_alpha_grp.layout.display = \
-            None if self._has_data_type(gui_utils.GL_TYPE_POLYS) else 'none'
+            None if self._has_data_type(gui_utils.GEOM_TYPE_POLYS) else 'none'
 
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end

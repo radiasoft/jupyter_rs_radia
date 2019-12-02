@@ -4,10 +4,10 @@ require('vtk.js');
 
 let rsUtils = require('./rs_utils');
 
-const GL_TYPES = ['lines', 'polygons', 'vectors'];
-const TYPE_LINE =  Math.pow(2, GL_TYPES.indexOf('lines'));  // 2;
-const TYPE_POLY = Math.pow(2, GL_TYPES.indexOf('polygons'));  //1;
-const TYPE_VECT = Math.pow(2, GL_TYPES.indexOf('vectors'));  //4;
+const GEOM_TYPES = ['lines', 'polygons', 'vectors'];
+const TYPE_LINE =  Math.pow(2, GEOM_TYPES.indexOf('lines'));  // 2;
+const TYPE_POLY = Math.pow(2, GEOM_TYPES.indexOf('polygons'));  //1;
+const TYPE_VECT = Math.pow(2, GEOM_TYPES.indexOf('vectors'));  //4;
 
 function pickPoint(customFn) {
 
@@ -53,7 +53,7 @@ function objBounds(json) {
     let mins = [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE];
     let maxs = [-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE];
 
-    GL_TYPES.forEach(function (type) {
+    GEOM_TYPES.forEach(function (type) {
         if (! json[type]) {
             return;
         }
@@ -79,7 +79,7 @@ function objToPolyData(json, typeMask) {
         typeMask = TYPE_LINE + TYPE_POLY + TYPE_VECT;
     }
 
-    GL_TYPES.forEach(function (type, tIdx) {
+    GEOM_TYPES.forEach(function (type, tIdx) {
         if (!(Math.pow(2, tIdx) & typeMask)) {
             rsUtils.rsdbg('ignoring data for type', type);
             return;

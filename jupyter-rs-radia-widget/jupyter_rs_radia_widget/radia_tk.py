@@ -53,7 +53,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         # format is [[[px, py, pz], [vx, vy, vx]], ...]
         # convert to webGL object
 
-        v_data = gui_utils.new_gl_object()
+        v_data = gui_utils.new_geom_object()
         v_data.vectors.lengths = []
         v_data.vectors.colors = []
         v_max = 0.
