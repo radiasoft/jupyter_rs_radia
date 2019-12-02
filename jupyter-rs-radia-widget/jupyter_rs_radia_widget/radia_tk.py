@@ -21,11 +21,11 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
                 g_arr.append(g)
         return g_arr
 
-    def add_geom(self, geom_name, geom):
-        self._geoms[geom_name] = PKDict(g=geom, solved=False)
+    def add_geom(self, name, geom):
+        self._geoms[name] = PKDict(g=geom, solved=False)
 
-    def is_geom_solved(self, geom_name):
-        return self.get_geom(geom_name).solved
+    def is_geom_solved(self, name):
+        return self.get_geom(name).solved
 
     # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
     def mag_field_to_data(self, name, path):
@@ -33,13 +33,11 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         p = numpy.reshape(path, (-1, 3)).tolist()
         b = []
         # get every component
-        for f in ['Bx', 'By', 'Bz']:
-            b.extend(radia.Fld(self.get_geom(name), f, path))
+        f = radia.Fld(self.get_geom(name), 'b', path)
+        b.extend(f)
         b = numpy.reshape(b, (-1, 3)).tolist()
         for p_idx, pt in enumerate(p):
             pv_arr.append([pt, b[p_idx]])
-        self.rsdbg('get data from mag field {}'.format(pv_arr))
-        pkdp('get data from mag field {}', pv_arr)
         return self.vector_field_to_data(name, pv_arr)
 
     def magnetization_to_data(self, name):

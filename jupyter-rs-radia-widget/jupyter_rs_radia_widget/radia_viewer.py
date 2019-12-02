@@ -78,12 +78,10 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             if f_type == FIELD_TYPE_MAG_M:
                 self.model_data = self.mgr.magnetization_to_data(g_name)
             elif f_type == FIELD_TYPE_MAG_B:
-                self.rsdbg('display b field')
                 self.model_data = self.mgr.mag_field_to_data(
                     g_name,
                     self.current_field_path
                 )
-                self.rsdbg('got b data {}'.format(self.model_data))
         #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
         self.refresh()
