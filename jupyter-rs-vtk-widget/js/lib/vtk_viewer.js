@@ -494,7 +494,6 @@ var VTKView = widgets.DOMWidgetView.extend({
                         rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
                         selectedValue = m;
                         view.processPickedValue(selectedValue);
-                        //view.setFieldIndicator(m, d[0], d[d.length - 1]);
                         continue;
                     }
                     if (info.type === GEOM_SURFACE_ACTOR) {
@@ -557,7 +556,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                     let a = view.getActor(name);
                     view.setEdgeColor(a, a === view.selectedObject ? [0, 255, 255] : [0, 0, 0]);
                 }
-                //view.processPickedColor(selectedColor);
+                view.processPickedColor(selectedColor);
 
                 //if (! isNaN(selectedValue)) {
                 //    rsUtils.rsdbg('vtk processPickedValue');
@@ -632,8 +631,8 @@ var VTKView = widgets.DOMWidgetView.extend({
             let sceneDatum = data[i];
             let bounds = vtkUtils.objBounds(sceneDatum);
             // specify which types to include externally
-            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY | vtkUtils.TYPE_LINE);
-            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
+            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY | vtkUtils.TYPE_LINE);
+            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
             const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
                 static: true
             });
@@ -643,9 +642,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             });
             actor.getProperty().setEdgeVisibility(true);
             this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pData.getNumberOfPolys() > 0);
-            //this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, true);
 
-            //if (sceneData.vectors && sceneData.vectors.vertices.length) {
             let vectors = sceneDatum.vectors;
             if (vectors && vectors.vertices.length) {
                 let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);

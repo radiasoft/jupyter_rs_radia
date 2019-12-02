@@ -70,7 +70,7 @@ function objBounds(json) {
     return [mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2]];
 }
 
-function objToPolyData(json, typeMask, addNormals) {
+function objToPolyData(json, typeMask) {
     let colors = [];
     let points = [];
     let tData = {};

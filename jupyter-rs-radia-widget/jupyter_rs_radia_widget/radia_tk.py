@@ -70,7 +70,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             v_data.vectors.magnitudes.append(n)
         v_data.vectors.range = [v_min, v_max]
 
-        l_data = self.geom_to_data(name, divide=False)['data'][0]
+        l_data = self.geom_to_data(name, divide=False).data[0]
         # temp color set - will move to client
         for c_idx, c in enumerate(l_data.lines.colors):
             l_data.lines.colors[c_idx] = 0.85
@@ -78,12 +78,9 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data.lines.lengths.extend(l_data.lines.lengths)
         v_data.lines.colors.extend(l_data.lines.colors)
 
-        return {
-            'name': name,
-            'data': [v_data]
-        }
+        return PKDict(name=name, data=[v_data])
 
-    def geom_to_data(self, name, axes=False, divide=True):
+    def geom_to_data(self, name, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
         geom = self.get_geom(name)
         d_arr = []
@@ -95,10 +92,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             # for g in self._get_all_geom(geom):
                 d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
 
-        return {
-            'name': name,
-            'data': d_arr,
-        }
+        return PKDict(name=name, data=d_arr)
 
     def get_geom(self, name):
         return self._geoms[name].g
