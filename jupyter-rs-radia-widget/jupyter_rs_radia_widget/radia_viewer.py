@@ -164,9 +164,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         )
         self.solve_btn = widgets.Button(description='Solve',
                                         layout={'width': 'fit-content'},
-                                        style={
-                                            'button_color': '#d9edf7'
-                                        })
+                                        )
         self.solve_btn.on_click(self._solve)
 
         self.solve_res_label = widgets.Label()
@@ -209,7 +207,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             c.disabled =  not enabled
 
     def _radia_displayed(self, o):
-        #self.rsdbg('RADIA ready {}'.format(self.client_props))
         self.geom_list.value = self.current_geom
 
     def _set_current_geom(self, d):
@@ -236,9 +233,9 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.vector_scaling = d['new']
 
     def _solve(self, b):
-        self.rsdbg('solve prec {} iter {} meth {}'.format(
-            self.solve_prec.value, self.solve_max_iter.value, self.solve_method.value
-        ))
+        #self.rsdbg('solve prec {} iter {} meth {}'.format(
+        #    self.solve_prec.value, self.solve_max_iter.value, self.solve_method.value
+        #))
         self._enable_controls(False)
         self.solve_res_label.value = ''
         start = datetime.datetime.now()

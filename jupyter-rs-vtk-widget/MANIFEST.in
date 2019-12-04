@@ -1,3 +1,2 @@
-recursive-include jupyter_rs_vtk_widget/static *.*
+graft jupyter_rs_vtk_widget/static
 include jupyter-rs-vtk-widget.json
-include examples/*.ipynb

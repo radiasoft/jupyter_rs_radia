@@ -1,3 +1,2 @@
-recursive-include jupyter_rs_radia_widget/static *.*
+graft jupyter_rs_radia_widget/static
 include jupyter-rs-radia-widget.json
-include examples/*.ipynb

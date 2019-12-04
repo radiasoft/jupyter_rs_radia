@@ -3,6 +3,7 @@ let $ = require('jquery');
 let controls = require('@jupyter-widgets/controls');
 let guiUtils = require('./gui_utils');
 let rsUtils = require('./rs_utils');
+//let rsjpyStyle = require('../css/rsjpy.css');
 let widgets = require('@jupyter-widgets/base');
 
 const template = [
@@ -10,7 +11,6 @@ const template = [
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div class="vector-field-color-map-content" style="display: none;">',
             '<div class="vector-field-indicator">',
-                //'<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
                 '<span class="vector-field-indicator-value">0</span>',
             '</div>',
             '<div class="vector-field-color-map" style="height: 32px;">',
@@ -80,13 +80,13 @@ const RadiaViewerView = controls.VBoxView.extend({
     processPickedValue: function(viewer) {
         return function (val) {
             let v = viewer.getVectors();
-            rsUtils.rsdbg('radia processPickedValue', v);
+            //rsUtils.rsdbg('radia processPickedValue', v);
             viewer.setFieldIndicator(val, v.range[0], v.range[1]);
         };
     },
 
     refresh: function() {
-        $(this.el).find('.vector-field-color-map-content').css(
+        this.select('.vector-field-color-map-content').css(
             'display', 'none');
         let vectors = this.getVectors();
         if (! vectors) {
@@ -94,10 +94,10 @@ const RadiaViewerView = controls.VBoxView.extend({
         }
 
         //TODO(mvk): real axis with tick marks, labels, etc.
-        $(this.el).find('.vector-field-color-map-content').css(
+        this.select('.vector-field-color-map-content').css(
             'display', 'block'
         );
-        let fieldTicks = $(this.el).find('.vector-field-color-map-axis span');
+        let fieldTicks = this.select('.vector-field-color-map-axis span');
         let numTicks = fieldTicks.length;
         if (numTicks >= 2) {
             let minV = vectors.range[0];
@@ -118,13 +118,11 @@ const RadiaViewerView = controls.VBoxView.extend({
         const view = this;
 
         getVTKView(this).then(function (o) {
-
             view.vtkViewer = o;
             view.vtkViewerEl = $(view.vtkViewer.el).find('.vtk-widget');
             view.vtkViewerEl.append($(template));
 
             view.vtkViewer.processPickedValue = view.processPickedValue(view);
-            //view.setFieldColorMap();
         });
 
         // store current settings in cookies?
@@ -152,6 +150,10 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
 
+    select: function(selector) {
+        return $(this.el).find(selector);
+    },
+
     setFieldColorMap: function() {
         let mapName = this.model.get('field_color_map_name');
         if (! mapName) {
@@ -168,7 +170,7 @@ const RadiaViewerView = controls.VBoxView.extend({
             return;
         }
         let g = guiUtils.getColorMap(mapName, null, '#');
-        $(this.el).find('.vector-field-color-map')
+        this.select('.vector-field-color-map')
             .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
     },
 
@@ -177,17 +179,17 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     setFieldIndicator: function(val, min, max) {
-        let w = $(this.el).find('.vector-field-color-map').width();
-        let iw = $(this.el).find('.vector-field-indicator-pointer').width();
+        let w = this.select('.vector-field-color-map').width();
+        let iw = this.select('.vector-field-indicator-pointer').width();
         let f = Math.abs(val / (max - min));
         let l = w * f;  // - 0.5 * iw;
         rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l);
-        $(this.el).find('.vector-field-indicator-pointer').css('margin-left', (l + 'px'));
-        $(this.el).find('.vector-field-indicator-value').text(val);
+        this.select('.vector-field-indicator-pointer').css('margin-left', (l + 'px'));
+        this.select('.vector-field-indicator-value').text(val);
     },
 
     setTitle: function() {
-        $(this.el).find('.radia-viewer-title').text(this.model.get('title'));
+        this.select('.radia-viewer-title').text(this.model.get('title'));
     },
 
 });

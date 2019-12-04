@@ -77,14 +77,14 @@ class NPM(Command):
         pass
 
     def get_npm_name(self):
-        npmName = 'npm';
+        npmName = 'npm'
         if platform.system() == 'Windows':
-            npmName = 'npm.cmd';
+            npmName = 'npm.cmd'
             
-        return npmName;
+        return npmName
     
     def has_npm(self):
-        npmName = self.get_npm_name();
+        npmName = self.get_npm_name()
         try:
             check_call([npmName, '--version'])
             return True
@@ -106,7 +106,7 @@ class NPM(Command):
 
         if self.should_run_npm_install():
             log.info("Installing build dependencies with npm.  This may take a while...")
-            npmName = self.get_npm_name();
+            npmName = self.get_npm_name()
             check_call([npmName, 'install'], cwd=node_root, stdout=sys.stdout, stderr=sys.stderr)
             os.utime(self.node_modules, None)
 
@@ -152,11 +152,15 @@ setup_args = {
 
     'author': 'RadiaSoft LLC',
     'author_email': 'support@sirepo.com',
-    'url': 'https://github.com/radiasoft/jupyter-rs-radia-widget',
+    'url': 'https://github.com/radiasoft/rsjpyradia',
     'keywords': [
         'ipython',
         'jupyter',
         'widgets',
+    ],
+    'license': 'Apache-2.0',
+    'platforms': [
+        'Jupyter Lab'
     ],
     'classifiers': [
         'Development Status :: 4 - Beta',
