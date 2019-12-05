@@ -5,7 +5,7 @@ class RSDebugger(object):
     def __init__(self):
         pass
 
-    def rsdebug(self, msg):
+    def rsdbg(self, msg):
         super(RSDebugger, self).__init__()
 
         # send a message to the front end to print to js console
