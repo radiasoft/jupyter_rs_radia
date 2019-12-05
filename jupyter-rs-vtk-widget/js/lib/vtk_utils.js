@@ -4,10 +4,15 @@ require('vtk.js');
 
 let rsUtils = require('./rs_utils');
 
-const GEOM_TYPES = ['lines', 'polygons', 'vectors'];
-const TYPE_LINE =  Math.pow(2, GEOM_TYPES.indexOf('lines'));  // 2;
-const TYPE_POLY = Math.pow(2, GEOM_TYPES.indexOf('polygons'));  //1;
-const TYPE_VECT = Math.pow(2, GEOM_TYPES.indexOf('vectors'));  //4;
+const GEOM_TYPE_LINES = 'lines';
+const GEOM_TYPE_POLYS = 'polygons';
+const GEOM_TYPE_VECTS = 'vectors';
+const GEOM_OBJ_TYPES = [GEOM_TYPE_LINES, GEOM_TYPE_POLYS];
+const GEOM_TYPES = [GEOM_TYPE_LINES, GEOM_TYPE_POLYS, GEOM_TYPE_VECTS];
+
+const TYPE_MASK_LINE =  Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_LINES));
+const TYPE_MASK_POLY = Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_POLYS));
+const TYPE_MASK_VECT = Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_VECTS));
 
 function pickPoint(customFn) {
 
@@ -70,17 +75,26 @@ function objBounds(json) {
     return [mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2]];
 }
 
-function objToPolyData(json, typeMask) {
+//function objToPolyData(json, typeMask) {
+function objToPolyData(json, includeTypes) {
     let colors = [];
     let points = [];
     let tData = {};
 
-    if (! typeMask) {
-        typeMask = TYPE_LINE + TYPE_POLY + TYPE_VECT;
+    //if (! typeMask) {
+    //    typeMask = TYPE_LINE + TYPE_POLY + TYPE_VECT;
+    //}
+
+    if (! includeTypes || includeTypes.length === 0) {
+        includeTypes = GEOM_TYPES;
     }
 
     GEOM_TYPES.forEach(function (type, tIdx) {
-        if (!(Math.pow(2, tIdx) & typeMask)) {
+        //if (!(Math.pow(2, tIdx) & typeMask)) {
+        //    rsUtils.rsdbg('ignoring data for type', type);
+        //    return;
+        //}
+        if (includeTypes.indexOf(type) < 0) {
             rsUtils.rsdbg('ignoring data for type', type);
             return;
         }
@@ -152,11 +166,16 @@ function vectorsToPolyData(json) {
 }
 
 module.exports = {
+    GEOM_TYPE_LINES: GEOM_TYPE_LINES,
+    GEOM_TYPE_POLYS: GEOM_TYPE_POLYS,
+    GEOM_TYPE_VECTS: GEOM_TYPE_VECTS,
+    GEOM_OBJ_TYPES: GEOM_OBJ_TYPES,
+    GEOM_TYPES: GEOM_TYPES,
     getTestBox: getTestBox,
     getTestCylinder: getTestCylinder,
     objBounds: objBounds,
     objToPolyData: objToPolyData,
-    TYPE_LINE: TYPE_LINE,
-    TYPE_POLY: TYPE_POLY,
-    TYPE_VECT: TYPE_VECT,
+    TYPE_MASK_LINE: TYPE_MASK_LINE,
+    TYPE_MASK_POLY: TYPE_MASK_POLY,
+    TYPE_MASK_VECT: TYPE_MASK_VECT,
 };

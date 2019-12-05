@@ -9,6 +9,7 @@ let rsUtils = require('./rs_utils');
 //let rsUtils = require('rs-widget-utils/rs_utils');
 let vtkUtils = require('./vtk_utils');
 
+const GEOM_EDGE_ACTOR = 'geomEdge';
 const GEOM_SURFACE_ACTOR = 'geomSurface';
 const LINEAR_SCALE_ARRAY = 'linScale';
 const LOG_SCALE_ARRAY = 'logScale';
@@ -16,7 +17,9 @@ const ORIENTATION_ARRAY = 'orientation';
 const SCALAR_ARRAY = 'scalars';
 const VECTOR_ACTOR = 'vector';
 
-const ACTOR_TYPES = [GEOM_SURFACE_ACTOR, VECTOR_ACTOR];
+//const ACTOR_TYPES = [GEOM_EDGE_ACTOR, GEOM_SURFACE_ACTOR, VECTOR_ACTOR];
+
+const PICKABLE_TYPES = [vtkUtils.GEOM_TYPE_POLYS, vtkUtils.GEOM_TYPE_VECTS];
 
 let template = [
     '<div class="vtk-widget" style="border-style: solid; border-color: blue; border-width: 1px;">',
@@ -136,9 +139,14 @@ function getVectorMagnitude() {
 }
 
 function typeForName(name) {
-    for (let i = 0; i <  ACTOR_TYPES.length; ++i) {
-        if (name.startsWith(ACTOR_TYPES[i])) {
-            return ACTOR_TYPES[i];
+    //for (let i = 0; i <  ACTOR_TYPES.length; ++i) {
+    //    if (name.startsWith(ACTOR_TYPES[i])) {
+    //        return ACTOR_TYPES[i];
+    //    }
+    //}
+    for (let i = 0; i < vtkUtils.GEOM_TYPES.length; ++i) {
+        if (name.startsWith(vtkUtils.GEOM_TYPES[i])) {
+            return vtkUtils.GEOM_TYPES[i];
         }
     }
     return null;
@@ -271,6 +279,7 @@ var VTKModel = widgets.DOMWidgetModel.extend({
 // Custom View. Renders the widget model.
 var VTKView = widgets.DOMWidgetView.extend({
 
+    actorGroups: [],
     actorInfo: {},
     cPicker: null,
     fsRenderer: null,
@@ -290,10 +299,10 @@ var VTKView = widgets.DOMWidgetView.extend({
     // stash the actor and associated info to avoid recalculation
     addActor: function(name, actor, pickable) {
         if (! this.fsRenderer) {
-            // exception?
+            // exception or message?
             //rsUtils.rslog('No renderer');
-            throw new Error('No renderer');
             //return;
+            throw new Error('No renderer');
         }
         if (! actor.getMapper() || ! actor.getMapper().getInputData()) {
             throw new Error('Actor ' + name + ' has no mapper or data');
@@ -305,7 +314,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         let info = {
             actor: actor,
             lineIndices: [],
-            linePolyMap: mapLinesToPolys(pData),
+            //linePolyMap: mapLinesToPolys(pData),
             name: name,
             numLineColors: numLineColors(pData),
             numPolyColors: numPolyColors(pData),
@@ -419,6 +428,18 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.refresh();
     },
 
+    sharesGroup: function(actor1, actor2) {
+        if (! actor1 || ! actor2) {
+            return false;
+        }
+        const g1 = this.getInfoForActor(actor1).name.split('_')[1];
+        const g2 = this.getInfoForActor(actor2).name.split('_')[1];
+        if (! g1 || ! g2) {
+            return false;
+        }
+        return g1 === g2;
+    },
+
     refresh: function(o) {
 
         const view = this;
@@ -481,7 +502,8 @@ var VTKView = widgets.DOMWidgetView.extend({
                     let pts = info.pData.getPoints();
 
                     // TODO(mvk): attach pick functions to actor info
-                    if (info.type === VECTOR_ACTOR) {
+                    //if (info.type === VECTOR_ACTOR) {
+                    if (info.type === vtkUtils.GEOM_TYPE_VECTS) {
                         let n = pts.getNumberOfComponents();
                         let coords = pts.getData().slice(n * pid, n * (pid + 1));
                         let f = actor.getMapper().getInputConnection(0).filter;
@@ -496,39 +518,55 @@ var VTKView = widgets.DOMWidgetView.extend({
                         view.processPickedValue(selectedValue);
                         continue;
                     }
-                    if (info.type === GEOM_SURFACE_ACTOR) {
-
+                    //if (info.type === GEOM_SURFACE_ACTOR) {
+                    // not needed if we place lines in separate actor
+                    //if (info.type === vtkUtils.GEOM_TYPE_POLYS) {
+                        /*
                         if (actor === view.selectedObject) {
+                            rsUtils.rsdbg(info.name, 'unselect');
                             view.selectedObject = null;
                         }
                         else {
+                            rsUtils.rsdbg(info.name, 'select');
                             view.selectedObject = actor;
                         }
+                        */
 
                         let colors = info.scalars.getData();
-                        let cells = info.pData.getCellData();
+                        //let cells = info.pData.getCellData();
 
                         let cellPts = info.pData.getCellPoints(cid);
-                        let ct = cellPts.cellType;
-                        if (info.linePolyMap[cid]) {
-                            cid = info.linePolyMap[cid];
-                            ct = vtk.Common.DataModel.vtkCell.VTK_POLYGON  // use matching poly
-                        }
+                        //let ct = cellPts.cellType;
+                        ///if (info.linePolyMap[cid]) {
+                        //    cid = info.linePolyMap[cid];
+                        //    ct = vtk.Common.DataModel.vtkCell.VTK_POLYGON  // use matching poly
+                        //}
                         // we picked a line cell, find a polygon
-                        if (ct === vtk.Common.DataModel.vtkCell.VTK_LINE || ct === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE ) {
-                            let j = info.lineIndices[cid];
-                            selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
-                        }
-                        else {
+                        // not needed if we place lines in separate actor
+                        //if (ct === vtk.Common.DataModel.vtkCell.VTK_LINE || ct === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE ) {
+                        //    let j = info.lineIndices[cid];
+                        //    selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
+                        //}
+                        //else {
                             let j = info.polyIndices[cid];
                             selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
                             rsUtils.rsdbg(info.name, 'poly tup', cid, selectedColor);
-                        }
+                        //}
+                    //TODO(mvk): should stop when we've selected actor closest to screen
                         if (selectedColor.length > 0) {
+                            rsUtils.rsdbg(info.name, 'got color, stop');
+                            if (actor === view.selectedObject) {
+                                rsUtils.rsdbg(info.name, 'unselect');
+                                view.selectedObject = null;
+                            }
+                            else {
+                                rsUtils.rsdbg(info.name, 'select');
+                                view.selectedObject = actor;
+                            }
                             break;
                         }
                     }
-                }
+                //}
 
                 //rsUtils.rsdbg('selected', view.selectedObject, selectedColor);
                 if (selectedColor.length === 0) {
@@ -549,19 +587,15 @@ var VTKView = widgets.DOMWidgetView.extend({
                 rsUtils.rsdbg('comp hsv', hsv, '-> comp rgb', scComp);
 
                 let sch = vtk.Common.Core.vtkMath.floatRGB2HexCode(sc);
-                //rsUtils.rsdbg('selected color float', sc, 'hex', sch);
                 view.model.set('selected_obj_color', sch);
                 //TODO(mvk): figure out a good highlight color programmatically
+                const highlight = [0, 255, 255];
                 for (let name in view.actorInfo) {
                     let a = view.getActor(name);
-                    view.setEdgeColor(a, a === view.selectedObject ? [0, 255, 255] : [0, 0, 0]);
+                    view.setEdgeColor(a, view.sharesGroup(a, view.selectedObject) ? highlight : [0, 0, 0]);
+                    //view.setEdgeColor(a, a === view.selectedObject ? highlight : [0, 0, 0]);
                 }
                 view.processPickedColor(selectedColor);
-
-                //if (! isNaN(selectedValue)) {
-                //    rsUtils.rsdbg('vtk processPickedValue');
-                //    view.processPickedValue(selectedValue);
-                //}
 
             });
 
@@ -629,10 +663,56 @@ var VTKView = widgets.DOMWidgetView.extend({
         for (let i = 0; i < data.length; ++i) {
 
             let sceneDatum = data[i];
+            //let grp = [];
             let bounds = vtkUtils.objBounds(sceneDatum);
-            // specify which types to include externally
-            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY | vtkUtils.TYPE_LINE);
-            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_POLY);
+
+            // trying a separation into an actor for each data type, to better facilitate selection
+            vtkUtils.GEOM_TYPES.forEach(function (t, tIdx) {
+                const d = sceneDatum[t];
+                if (! d || ! d.vertices || ! d.vertices.length) {
+                    return;
+                }
+                const isPoly = t === vtkUtils.GEOM_TYPE_POLYS;
+                const pData = vtkUtils.objToPolyData(sceneDatum, [t]);
+                let mapper = null;
+                const actor = vtk.Rendering.Core.vtkActor.newInstance();
+                if (vtkUtils.GEOM_OBJ_TYPES.indexOf(t) >= 0) {
+                    mapper = vtk.Rendering.Core.vtkMapper.newInstance({
+                        static: true
+                    });
+                    mapper.setInputData(pData);
+                }
+                else {
+                    let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
+                    vectorCalc.setFormula(getVectFormula(d, view.model.get('vector_color_map_name')));
+                    vectorCalc.setInputData(pData);
+
+                    mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
+                    mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
+
+                    let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
+                    mapper.setInputConnection(s.getOutputPort(), 1);
+                    mapper.setOrientationArray(ORIENTATION_ARRAY);
+
+                    // this scales by a constant - the default is to use scalar data
+                    //TODO(mvk): set based on bounds size
+                    mapper.setScaleFactor(8.0);
+                    mapper.setScaleModeToScaleByConstant();
+                    mapper.setColorModeToDefault();
+                }
+                actor.setMapper(mapper);
+                actor.getProperty().setEdgeVisibility(isPoly);
+                actor.getProperty().setLighting(isPoly);
+                const name = t + '_' + i;
+                view.addActor(name, actor, PICKABLE_TYPES.indexOf(t) >= 0);
+                //grp.push(name);
+            });
+
+            //this.actorGroups.push(grp);
+
+            /*
+            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_POLY | vtkUtils.TYPE_MASK_LINE);
+            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_POLY);
             const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
                 static: true
             });
@@ -642,10 +722,12 @@ var VTKView = widgets.DOMWidgetView.extend({
             });
             actor.getProperty().setEdgeVisibility(true);
             this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pData.getNumberOfPolys() > 0);
+             */
 
-            let vectors = sceneDatum.vectors;
+            /*
+            const vectors = sceneDatum.vectors;
             if (vectors && vectors.vertices.length) {
-                let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_VECT);
+                let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_VECT);
                 let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
                 vectorCalc.setFormula(getVectFormula(vectors, this.model.get('vector_color_map_name')));
                 vectorCalc.setInputData(vData);
@@ -669,6 +751,8 @@ var VTKView = widgets.DOMWidgetView.extend({
                 actor.getProperty().setLighting(false);
                 this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
             }
+             */
+
             for(let j = 0; j < 3; ++j) {
                 let k = 2 * j;
                 totalBounds[k] = Math.min(totalBounds[k], bounds[k]);
@@ -687,6 +771,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             view.cPicker.deletePickList(a);
         });
         this.actorInfo = {};
+        this.actorGroups = [];
     },
 
     render: function() {
@@ -771,6 +856,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
         let info = this.getInfoForActor(actor);
+        rsUtils.rsdbg('setEdgeColor', info, color);
         actor.getProperty().setEdgeColor(color[0], color[1], color[2]);
         let s = info.scalars;
         if (! s) {
@@ -794,7 +880,8 @@ var VTKView = widgets.DOMWidgetView.extend({
         for (let name in this.actorInfo) {
             let info = this.getActorInfo(name);
             // arrows just turn black when edges are on
-            if (info.type === VECTOR_ACTOR) {
+            //if (info.type === VECTOR_ACTOR) {
+            if (info.type === vtkUtils.GEOM_TYPE_VECTS) {
                 continue;
             }
             this.getActor(name).getProperty().setEdgeVisibility(doShow);
@@ -845,7 +932,8 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setVectorColorMap: function() {
-        const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        //const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        const actor = this.getActorsOfType(vtkUtils.GEOM_TYPE_VECTS)[0];
         if (! actor) {
             rsUtils.rslog('vtk setVectorColorMap: No vector actor');
             return;
@@ -861,7 +949,8 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setVectorScaling: function(vs) {
-        let actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        //const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
+        const actor = this.getActorsOfType(vtkUtils.GEOM_TYPE_VECTS)[0];
         if (! actor) {
             return;
         }
