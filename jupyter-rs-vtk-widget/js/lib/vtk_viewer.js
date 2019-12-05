@@ -152,83 +152,6 @@ function typeForName(name) {
     return null;
 }
 
-// if a "line" has the same points as a polygon, associate the line index to that of the poly.
-// CellPickers seem to prioritize edges
-// get rid of this?
-function mapLinesToPolys(polyData) {
-    let lines = polyData.getLines().getData();
-    let polys = polyData.getPolys().getData();
-    let points = polyData.getPoints().getData();
-    let map = {};
-    let i = 0;
-    let j = 0;
-    let lp = [];
-    while (i < lines.length) {
-        let inds = lines.slice(i + 1, i + lines[i] + 1);
-        let pts = [];
-        for (let k = 0; k < inds.length; ++k) {
-            let tdx = 3 * inds[k];
-            pts.push(points.slice(tdx, tdx + 3));
-        }
-        lp.push(pts);
-        i += (lines[i] + 1);
-        ++j;
-    }
-
-    i = 0;
-    j = 0;
-    let pp = [];
-    while (i < polys.length) {
-        let inds = polys.slice(i + 1, i + polys[i] + 1);
-        let pts = [];
-        for (let k = 0; k < inds.length; ++k) {
-            let tdx = 3 * inds[k];
-            pts.push(points.slice(tdx, tdx + 3));
-        }
-        pts.push(pts[0]);  // to cf with lines
-        pp.push(pts);
-        i += (polys[i] + 1);
-        ++j;
-    }
-
-    // loop over lines
-    for (let i = 0; i < lp.length; ++i) {
-        let lpts = lp[i];
-        // loop over polys
-        for (let j = 0; j < pp.length; ++j) {
-            //if (Object.values(map).indexOf(j) >= 0) {
-            //    continue;
-            //}
-            let ppts = pp[j];
-            if (lpts.length !== ppts.length) {
-                continue;
-            }
-            // loop over coord sets
-            let smatch = true;
-            for (let k = 0; k < lpts.length; ++k) {
-                let cmatch = true;
-                // loop over coords
-                for (let m = 0; m < 3; ++m) {
-                    cmatch = cmatch && lpts[k][m] === ppts[k][m];
-                    if (! cmatch) {
-                        break;
-                    }
-                }
-                smatch = smatch && cmatch;
-                if (! smatch) {
-                    break;
-                }
-            }
-            if (smatch) {
-                map[i] = j;
-                break;
-            }
-        }
-    }
-    //rsUtils.rsdbg('l -> p', map);
-    return map;
-}
-
 function numLineColors(polyData) {
     return numDataColors(polyData.getLines().getData());
 }
@@ -308,13 +231,12 @@ var VTKView = widgets.DOMWidgetView.extend({
             throw new Error('Actor ' + name + ' has no mapper or data');
         }
 
-        rsUtils.rsdbg('adding actor', name, actor);
+        //rsUtils.rsdbg('adding actor', name, actor);
         let pData = actor.getMapper().getInputData();
 
         let info = {
             actor: actor,
             lineIndices: [],
-            //linePolyMap: mapLinesToPolys(pData),
             name: name,
             numLineColors: numLineColors(pData),
             numPolyColors: numPolyColors(pData),
@@ -471,11 +393,11 @@ var VTKView = widgets.DOMWidgetView.extend({
                 // we may get multiple actors
                 let cid = view.cPicker.getCellId();
                 //rsUtils.rsdbg('Picked pt', point);
-                rsUtils.rsdbg('Picked pt at', 'pid', pid);
-                rsUtils.rsdbg('Picked cell at', 'cid', cid);
+                //rsUtils.rsdbg('Picked pt at', 'pid', pid);
+                //rsUtils.rsdbg('Picked cell at', 'cid', cid);
 
+                // treat pickers separately rather than select one?
                 let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
-                //if (! picker) {
                 if (cid < 0 && pid < 0) {
                     rsUtils.rsdbg('Pick failed');
                     return;
@@ -490,19 +412,16 @@ var VTKView = widgets.DOMWidgetView.extend({
                 let selectedValue = Number.NaN;
                 for (let aIdx in pas) {
                     let actor = pas[aIdx];
-                    //view.selectedObject = actor;
-
                     //let pos = posArr[aIdx];
                     let info = view.getInfoForActor(actor);
-                    rsUtils.rsdbg('actor', actor, 'info', info);
+                    //rsUtils.rsdbg('actor', actor, 'info', info);
                     if (! info.pData) {
                         continue;
                     }
 
                     let pts = info.pData.getPoints();
 
-                    // TODO(mvk): attach pick functions to actor info
-                    //if (info.type === VECTOR_ACTOR) {
+                    // TODO(mvk): attach pick functions to actor info?
                     if (info.type === vtkUtils.GEOM_TYPE_VECTS) {
                         let n = pts.getNumberOfComponents();
                         let coords = pts.getData().slice(n * pid, n * (pid + 1));
@@ -513,87 +432,49 @@ var VTKView = widgets.DOMWidgetView.extend({
                         }
                         let d = linArr.getData();
                         let m = d[pid * linArr.getNumberOfComponents()];
-                        rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
+                        //rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
                         selectedValue = m;
                         view.processPickedValue(selectedValue);
                         continue;
                     }
-                    //if (info.type === GEOM_SURFACE_ACTOR) {
-                    // not needed if we place lines in separate actor
-                    //if (info.type === vtkUtils.GEOM_TYPE_POLYS) {
-                        /*
+
+                    let colors = info.scalars.getData();
+                    let j = info.polyIndices[cid];
+                    selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
+                    //rsUtils.rsdbg(info.name, 'poly tup', cid, selectedColor);
+
+                    if (selectedColor.length > 0) {
                         if (actor === view.selectedObject) {
-                            rsUtils.rsdbg(info.name, 'unselect');
                             view.selectedObject = null;
                         }
                         else {
-                            rsUtils.rsdbg(info.name, 'select');
                             view.selectedObject = actor;
                         }
-                        */
-
-                        let colors = info.scalars.getData();
-                        //let cells = info.pData.getCellData();
-
-                        let cellPts = info.pData.getCellPoints(cid);
-                        //let ct = cellPts.cellType;
-                        ///if (info.linePolyMap[cid]) {
-                        //    cid = info.linePolyMap[cid];
-                        //    ct = vtk.Common.DataModel.vtkCell.VTK_POLYGON  // use matching poly
-                        //}
-                        // we picked a line cell, find a polygon
-                        // not needed if we place lines in separate actor
-                        //if (ct === vtk.Common.DataModel.vtkCell.VTK_LINE || ct === vtk.Common.DataModel.vtkCell.VTK_POLY_LINE ) {
-                        //    let j = info.lineIndices[cid];
-                        //    selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
-                        //}
-                        //else {
-                            let j = info.polyIndices[cid];
-                            selectedColor = colors.slice(j, j + 3);  // 4 to get alpha
-                            rsUtils.rsdbg(info.name, 'poly tup', cid, selectedColor);
-                        //}
-                    //TODO(mvk): should stop when we've selected actor closest to screen
-                        if (selectedColor.length > 0) {
-                            rsUtils.rsdbg(info.name, 'got color, stop');
-                            if (actor === view.selectedObject) {
-                                rsUtils.rsdbg(info.name, 'unselect');
-                                view.selectedObject = null;
-                            }
-                            else {
-                                rsUtils.rsdbg(info.name, 'select');
-                                view.selectedObject = actor;
-                            }
-                            break;
-                        }
+                        break;
                     }
-                //}
+                }
 
                 //rsUtils.rsdbg('selected', view.selectedObject, selectedColor);
                 if (selectedColor.length === 0) {
                     view.selectedObject = null;
                     return;
                 }
+
                 // can't map, because we will still have a UINT8 array
                 let sc = [];
                 for (let cIdx = 0; cIdx < selectedColor.length; ++cIdx) {
                     sc.push(selectedColor[cIdx] / 255.0);
                 }
-                let hsv = [0, 0, 0];
-                let scComp = [0, 0, 0];
-                vtk.Common.Core.vtkMath.rgb2hsv(sc, hsv);
-                rsUtils.rsdbg('rgb', sc, '-> hsv', hsv);
-                hsv[0] = 1.0 - hsv[0];
-                vtk.Common.Core.vtkMath.hsv2rgb(hsv, scComp);
-                rsUtils.rsdbg('comp hsv', hsv, '-> comp rgb', scComp);
+
+                const highlight = selectedColor.map(function (c) {
+                    return 255 - c;
+                });
 
                 let sch = vtk.Common.Core.vtkMath.floatRGB2HexCode(sc);
-                view.model.set('selected_obj_color', sch);
-                //TODO(mvk): figure out a good highlight color programmatically
-                const highlight = [0, 255, 255];
+                view.model.set('selected_obj_color', view.selectedObject ? sch : '#ffffff');
                 for (let name in view.actorInfo) {
                     let a = view.getActor(name);
                     view.setEdgeColor(a, view.sharesGroup(a, view.selectedObject) ? highlight : [0, 0, 0]);
-                    //view.setEdgeColor(a, a === view.selectedObject ? highlight : [0, 0, 0]);
                 }
                 view.processPickedColor(selectedColor);
 
@@ -856,7 +737,7 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
         let info = this.getInfoForActor(actor);
-        rsUtils.rsdbg('setEdgeColor', info, color);
+        //rsUtils.rsdbg('setEdgeColor', info, color);
         actor.getProperty().setEdgeColor(color[0], color[1], color[2]);
         let s = info.scalars;
         if (! s) {
@@ -935,12 +816,12 @@ var VTKView = widgets.DOMWidgetView.extend({
         //const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         const actor = this.getActorsOfType(vtkUtils.GEOM_TYPE_VECTS)[0];
         if (! actor) {
-            rsUtils.rslog('vtk setVectorColorMap: No vector actor');
+            //rsUtils.rslog('vtk setVectorColorMap: No vector actor');
             return;
         }
         const mapName = this.model.get('vector_color_map_name');
         if (! mapName) {
-            rsUtils.rslog('vtk setVectorColorMap: No color map');
+            //rsUtils.rslog('vtk setVectorColorMap: No color map');
             return;
         }
         actor.getMapper().getInputConnection(0).filter

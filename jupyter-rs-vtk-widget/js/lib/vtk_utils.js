@@ -10,10 +10,6 @@ const GEOM_TYPE_VECTS = 'vectors';
 const GEOM_OBJ_TYPES = [GEOM_TYPE_LINES, GEOM_TYPE_POLYS];
 const GEOM_TYPES = [GEOM_TYPE_LINES, GEOM_TYPE_POLYS, GEOM_TYPE_VECTS];
 
-const TYPE_MASK_LINE =  Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_LINES));
-const TYPE_MASK_POLY = Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_POLYS));
-const TYPE_MASK_VECT = Math.pow(2, GEOM_TYPES.indexOf(GEOM_TYPE_VECTS));
-
 function pickPoint(customFn) {
 
 
@@ -75,27 +71,18 @@ function objBounds(json) {
     return [mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2]];
 }
 
-//function objToPolyData(json, typeMask) {
 function objToPolyData(json, includeTypes) {
     let colors = [];
     let points = [];
     let tData = {};
-
-    //if (! typeMask) {
-    //    typeMask = TYPE_LINE + TYPE_POLY + TYPE_VECT;
-    //}
 
     if (! includeTypes || includeTypes.length === 0) {
         includeTypes = GEOM_TYPES;
     }
 
     GEOM_TYPES.forEach(function (type, tIdx) {
-        //if (!(Math.pow(2, tIdx) & typeMask)) {
-        //    rsUtils.rsdbg('ignoring data for type', type);
-        //    return;
-        //}
         if (includeTypes.indexOf(type) < 0) {
-            rsUtils.rsdbg('ignoring data for type', type);
+            //rsUtils.rsdbg('Ignoring data for type', type);
             return;
         }
 
@@ -175,7 +162,4 @@ module.exports = {
     getTestCylinder: getTestCylinder,
     objBounds: objBounds,
     objToPolyData: objToPolyData,
-    TYPE_MASK_LINE: TYPE_MASK_LINE,
-    TYPE_MASK_POLY: TYPE_MASK_POLY,
-    TYPE_MASK_VECT: TYPE_MASK_VECT,
 };
