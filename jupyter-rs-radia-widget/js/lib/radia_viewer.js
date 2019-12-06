@@ -9,12 +9,12 @@ let widgets = require('@jupyter-widgets/base');
 const template = [
     '<div class="radia-viewer">',
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
-        '<div class="vector-field-color-map-content" style="display: none;">',
+        '<div class="vector-field-color-map-content" style="display: none; padding-left: 4px; padding-right: 4px;">',
             '<div class="vector-field-indicator">',
-                '<span class="vector-field-indicator-value">0</span>',
+                '<span class="vector-field-indicator-value" style="padding-left: 4px;">0</span>',
             '</div>',
-            '<div class="vector-field-color-map" style="height: 32px;">',
-                '<span class="vector-field-indicator-pointer" style="font-size: x-large">▼</span>',
+            '<div class="vector-field-color-map" style="height: 32px; overflow: hidden; border-color: black; border-width: 1px;">',
+                '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
                 '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
@@ -81,11 +81,12 @@ const RadiaViewerView = controls.VBoxView.extend({
         return function (val) {
             let v = viewer.getVectors();
             //rsUtils.rsdbg('radia processPickedValue', v);
-            viewer.setFieldIndicator(val, v.range[0], v.range[1]);
+            viewer.setFieldIndicator(val, v.range[0], v.range[1], (v.units || ''));
         };
     },
 
     refresh: function() {
+        rsUtils.rsdbg('radia refresh');
         this.select('.vector-field-color-map-content').css(
             'display', 'none');
         let vectors = this.getVectors();
@@ -102,16 +103,20 @@ const RadiaViewerView = controls.VBoxView.extend({
         if (numTicks >= 2) {
             let minV = vectors.range[0];
             let maxV = vectors.range[1];
-            fieldTicks[0].textContent = ('' + minV).substr(0, 4);
-            fieldTicks[numTicks - 1].textContent = ('' + maxV).substr(0, 4);
+            fieldTicks[0].textContent = ('' + rsUtils.roundToPlaces(minV, 2));
+            fieldTicks[numTicks - 1].textContent = ('' + rsUtils.roundToPlaces(maxV, 2));
             let dv = (maxV - minV) / (numTicks - 1);
             for (let i = 1; i < numTicks - 1; ++i) {
-                fieldTicks[i].textContent = ('' + (i * dv)).substr(0, 4);
+                fieldTicks[i].textContent = ('' + rsUtils.roundToPlaces(i * dv, 2));
             }
         }
+
+        this.setFieldScaling();
+        this.setFieldIndicator(vectors.range[0], vectors.range[0], vectors.range[1], vectors.units);
     },
 
     render: function() {
+        rsUtils.rsdbg('radia render');
         // this is effectively "super.render()"
         controls.VBoxView.prototype.render.apply((this));
 
@@ -164,12 +169,12 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     setFieldColorMapScale: function() {
-        let mapName = this.model.get('field_color_map_name');
+        const mapName = this.model.get('field_color_map_name');
         if (! mapName) {
             rsUtils.rslog('setFieldColorMapScale: No color map');
             return;
         }
-        let g = guiUtils.getColorMap(mapName, null, '#');
+        const g = guiUtils.getColorMap(mapName, null, '#');
         this.select('.vector-field-color-map')
             .css('background', 'linear-gradient(to right, ' + g.join(',') + ')');
     },
@@ -178,14 +183,19 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.vtkViewer.setVectorScaling(this.model.get('vector_scaling'));
     },
 
-    setFieldIndicator: function(val, min, max) {
-        let w = this.select('.vector-field-color-map').width();
-        let iw = this.select('.vector-field-indicator-pointer').width();
-        let f = Math.abs(val / (max - min));
-        let l = w * f;  // - 0.5 * iw;
-        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l);
-        this.select('.vector-field-indicator-pointer').css('margin-left', (l + 'px'));
-        this.select('.vector-field-indicator-value').text(val);
+    setFieldIndicator: function(val, min, max, units) {
+        const w = this.select('.vector-field-color-map').width();
+        const iw = this.select('.vector-field-indicator-pointer').width();
+        const f = Math.abs(val - min) / ((max - min) || 1);
+        const l = w * f - 0.5 * iw;
+        const g = guiUtils.getColorMap(this.model.get('field_color_map_name'), null, '');
+        const i = Math.floor(f * (g.length - 1));
+        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l, 'i', i, 'c', g[i]);
+        this.select('.vector-field-indicator-pointer')
+            .css('margin-left', (l + 'px'))
+            .css('color', guiUtils.fgColorForBG(g[i || 0], '#'));
+        this.select('.vector-field-indicator-value')
+            .text(rsUtils.roundToPlaces(val, 4) + ' ' + units);
     },
 
     setTitle: function() {

@@ -67,7 +67,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.current_geom = g_name
         v_type = self.view_type_list.value if v_type is None else v_type
         f_type = self.field_type_list.value if f_type is None else f_type
-        #self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
+        self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
         if v_type not in VIEW_TYPES:
             raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
         if f_type not in FIELD_TYPES:
@@ -120,7 +120,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             [widgets.Label('Geometry'), self.geom_list],
         )
 
-        # to be populated by the client
+        # to be populated by the client or a shared resource
         self.field_color_map_list = widgets.Dropdown(
             layout={'width': 'max-content'},
         )
@@ -145,6 +145,8 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             field_map_grp,
             vector_scaling_grp
         ])
+
+
 
         self.solve_prec = widgets.BoundedFloatText(
             value=0.0001, min=1e-06, max=10.0, step=1e-06,

@@ -9,20 +9,15 @@ let rsUtils = require('./rs_utils');
 //let rsUtils = require('rs-widget-utils/rs_utils');
 let vtkUtils = require('./vtk_utils');
 
-const GEOM_EDGE_ACTOR = 'geomEdge';
-const GEOM_SURFACE_ACTOR = 'geomSurface';
 const LINEAR_SCALE_ARRAY = 'linScale';
 const LOG_SCALE_ARRAY = 'logScale';
 const ORIENTATION_ARRAY = 'orientation';
 const SCALAR_ARRAY = 'scalars';
-const VECTOR_ACTOR = 'vector';
-
-//const ACTOR_TYPES = [GEOM_EDGE_ACTOR, GEOM_SURFACE_ACTOR, VECTOR_ACTOR];
 
 const PICKABLE_TYPES = [vtkUtils.GEOM_TYPE_POLYS, vtkUtils.GEOM_TYPE_VECTS];
 
 let template = [
-    '<div class="vtk-widget" style="border-style: solid; border-color: blue; border-width: 1px;">',
+    '<div class="vtk-widget" style="border-style: solid; border-color: #d9edf7; border-width: 1px;">',
         '<div class="viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div style="margin: 1em;">',
             '<div class="vtk-content"></div>',
@@ -139,11 +134,6 @@ function getVectorMagnitude() {
 }
 
 function typeForName(name) {
-    //for (let i = 0; i <  ACTOR_TYPES.length; ++i) {
-    //    if (name.startsWith(ACTOR_TYPES[i])) {
-    //        return ACTOR_TYPES[i];
-    //    }
-    //}
     for (let i = 0; i < vtkUtils.GEOM_TYPES.length; ++i) {
         if (name.startsWith(vtkUtils.GEOM_TYPES[i])) {
             return vtkUtils.GEOM_TYPES[i];
@@ -209,7 +199,10 @@ var VTKView = widgets.DOMWidgetView.extend({
     isLoaded: false,
     orientationMarker: null,
     ptPicker: null,
+    selectedCell: -1,
+    selectedColor: [],
     selectedObject: null,
+    selectedPoint: -1,
 
     // this object to be populated externally
     vectFormula: {
@@ -330,6 +323,7 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         if (msg.type === 'refresh') {
+            rsUtils.rsdbg('got refresh message');
             this.refresh();
         }
 
@@ -340,12 +334,14 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
 
+    // override
     processPickedColor: function(c) {},
 
+    // override
     processPickedValue: function(v) {},
 
-    //
     setData: function(d) {
+        rsUtils.rsdbg('vtk setting data');
         this.model.set('model_data', d);
         this.refresh();
     },
@@ -364,6 +360,7 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     refresh: function(o) {
 
+        rsUtils.rsdbg('vtk refresh');
         const view = this;
 
         this.selectedObject = null;
@@ -393,8 +390,8 @@ var VTKView = widgets.DOMWidgetView.extend({
                 // we may get multiple actors
                 let cid = view.cPicker.getCellId();
                 //rsUtils.rsdbg('Picked pt', point);
-                //rsUtils.rsdbg('Picked pt at', 'pid', pid);
-                //rsUtils.rsdbg('Picked cell at', 'cid', cid);
+                rsUtils.rsdbg('Picked pt at', 'pid', pid);
+                rsUtils.rsdbg('Picked cell at', 'cid', cid);
 
                 // treat pickers separately rather than select one?
                 let picker = cid >= 0 ? view.cPicker : (pid >= 0 ? view.ptPicker : null);
@@ -410,12 +407,13 @@ var VTKView = widgets.DOMWidgetView.extend({
 
                 let selectedColor = [];
                 let selectedValue = Number.NaN;
+                let eligibleActors = [];
                 for (let aIdx in pas) {
                     let actor = pas[aIdx];
                     //let pos = posArr[aIdx];
                     let info = view.getInfoForActor(actor);
                     //rsUtils.rsdbg('actor', actor, 'info', info);
-                    if (! info.pData) {
+                    if (! info || ! info.pData) {
                         continue;
                     }
 
@@ -430,10 +428,39 @@ var VTKView = widgets.DOMWidgetView.extend({
                         if (! linArr) {
                             continue;
                         }
-                        let d = linArr.getData();
-                        let m = d[pid * linArr.getNumberOfComponents()];
-                        //rsUtils.rsdbg(info.name, 'coords', coords, 'filter out val', m);
-                        selectedValue = m;
+                        selectedValue = linArr.getData()[pid * linArr.getNumberOfComponents()];
+
+                        let oArr = f.getOutputData().getPointData().getArrayByName(ORIENTATION_ARRAY);
+                        const oid = pid * oArr.getNumberOfComponents();
+                        const o = oArr.getData().slice(oid, oid + oArr.getNumberOfComponents());
+
+                        const sArr = f.getOutputData().getPointData().getArrayByName(SCALAR_ARRAY);
+                        const ns = sArr.getNumberOfComponents();
+                        const sid = pid * ns;
+                        const sc = sArr.getData().slice(sid, sid + ns);
+
+                        // toggle color?
+                        if (view.selectedColor.length) {
+                            const ssid = view.selectedPoint * ns;
+                            sArr.getData()[ssid] = view.selectedColor[0];
+                            sArr.getData()[ssid + 1] = view.selectedColor[1];
+                            sArr.getData()[ssid + 2] = view.selectedColor[2];
+                        }
+                        if (pid === view.selectedPoint) {
+                            view.selectedPoint = -1;
+                            view.selectedColor = [];
+                            selectedValue = Math.min.apply(null, linArr.getData());
+                        }
+                        else {
+                            sArr.getData()[sid] = 255;
+                            sArr.getData()[sid + 1] = 0;
+                            sArr.getData()[sid + 2] = 0;
+                            view.selectedPoint = pid;
+                            view.selectedColor = sc;
+                        }
+                        info.pData.modified();
+
+                        rsUtils.rsdbg(info.name, 'coords', coords, 'mag', selectedValue, 'orientation', o, 'color', sc);
                         view.processPickedValue(selectedValue);
                         continue;
                     }
@@ -448,6 +475,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                             view.selectedObject = null;
                         }
                         else {
+                            eligibleActors.push(actor);
                             view.selectedObject = actor;
                         }
                         break;
@@ -544,7 +572,6 @@ var VTKView = widgets.DOMWidgetView.extend({
         for (let i = 0; i < data.length; ++i) {
 
             let sceneDatum = data[i];
-            //let grp = [];
             let bounds = vtkUtils.objBounds(sceneDatum);
 
             // trying a separation into an actor for each data type, to better facilitate selection
@@ -586,53 +613,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 actor.getProperty().setLighting(isPoly);
                 const name = t + '_' + i;
                 view.addActor(name, actor, PICKABLE_TYPES.indexOf(t) >= 0);
-                //grp.push(name);
             });
-
-            //this.actorGroups.push(grp);
-
-            /*
-            let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_POLY | vtkUtils.TYPE_MASK_LINE);
-            //let pData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_POLY);
-            const mapper = vtk.Rendering.Core.vtkMapper.newInstance({
-                static: true
-            });
-            mapper.setInputData(pData);
-            let actor = vtk.Rendering.Core.vtkActor.newInstance({
-                mapper: mapper
-            });
-            actor.getProperty().setEdgeVisibility(true);
-            this.addActor(GEOM_SURFACE_ACTOR + '_' + i, actor, pData.getNumberOfPolys() > 0);
-             */
-
-            /*
-            const vectors = sceneDatum.vectors;
-            if (vectors && vectors.vertices.length) {
-                let vData = vtkUtils.objToPolyData(sceneDatum, vtkUtils.TYPE_MASK_VECT);
-                let vectorCalc = vtk.Filters.General.vtkCalculator.newInstance();
-                vectorCalc.setFormula(getVectFormula(vectors, this.model.get('vector_color_map_name')));
-                vectorCalc.setInputData(vData);
-
-                let mapper = vtk.Rendering.Core.vtkGlyph3DMapper.newInstance();
-                mapper.setInputConnection(vectorCalc.getOutputPort(), 0);
-
-                let s = vtk.Filters.Sources.vtkArrowSource.newInstance();
-                mapper.setInputConnection(s.getOutputPort(), 1);
-                mapper.setOrientationArray(ORIENTATION_ARRAY);
-
-                // this scales by a constant - the default is to use scalar data
-                //TODO(mvk): set based on bounds size
-                mapper.setScaleFactor(8.0);
-                mapper.setScaleModeToScaleByConstant();
-                mapper.setColorModeToDefault();
-
-                let actor = vtk.Rendering.Core.vtkActor.newInstance({
-                    mapper: mapper
-                });
-                actor.getProperty().setLighting(false);
-                this.addActor(VECTOR_ACTOR + '_' + i, actor, true);
-            }
-             */
 
             for(let j = 0; j < 3; ++j) {
                 let k = 2 * j;
@@ -656,6 +637,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
+        rsUtils.rsdbg('vtk render');
         // store current settings in cookies?
         //let c = document.cookie;
         //rsUtils.rsdbg('cookies', c);
@@ -667,12 +649,12 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
         this.model.on('change:vector_color_map_name', this.setVectorColorMap, this);
-        if (! this.isLoaded) {
+        //if (! this.isLoaded) {  // don't need this?
             $(this.el).append($(template));
             this.setTitle();
-            this.isLoaded = true;
+            //this.isLoaded = true;
             this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
-        }
+        //}
     },
 
     resetView: function() {
@@ -880,6 +862,7 @@ var ViewerView = controls.VBoxView.extend({
     },
 
     render: function() {
+        rsUtils.rsdbg('viewer render');
         // this is effectively "super.render()" - must invoke to get all children rendered properly
         controls.VBoxView.prototype.render.apply((this));
         this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);

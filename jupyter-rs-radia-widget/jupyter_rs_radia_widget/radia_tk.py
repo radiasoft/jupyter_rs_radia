@@ -38,16 +38,16 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         b = numpy.reshape(b, (-1, 3)).tolist()
         for p_idx, pt in enumerate(p):
             pv_arr.append([pt, b[p_idx]])
-        return self.vector_field_to_data(name, pv_arr)
+        return self.vector_field_to_data(name, pv_arr, 'T')
 
     def magnetization_to_data(self, name):
-        return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)))
+        return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)), 'T')
 
     # define send to satisfy RSDebugger - get web socket somehow instead?
     def send(self, msg):
         pkdp(msg)
 
-    def vector_field_to_data(self, name, pv_arr):
+    def vector_field_to_data(self, name, pv_arr, units):
         # format is [[[px, py, pz], [vx, vy, vx]], ...]
         # convert to webGL object
 
@@ -67,6 +67,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             v_data.vectors.directions.extend(nv)
             v_data.vectors.magnitudes.append(n)
         v_data.vectors.range = [v_min, v_max]
+        v_data.vectors.units = units
 
         l_data = self.geom_to_data(name, divide=False).data[0]
         # temp color set - will move to client

@@ -90,6 +90,16 @@ function colorsFromString(s) {
     });
 }
 
+// returns either black or white depending on the background color
+// there are more complex formulas if needed
+function fgColorForBG(bgColor, format) {
+    // assume single integer to start
+    const bg = rgbFromColor(bgColor, 1.0);
+    rsUtils.rsdbg('fg for bg', bgColor, bg);
+    let fg = bg[0] * 0.299 + bg[1] * 0.587 + bg[2] * 0.114 > 186 ? 0 : 16777215;
+    return formatColors([fg], format)[0];
+}
+
 function formatColors(colors, format) {
     // fix this up...
     if (format === '#') {
@@ -154,6 +164,7 @@ function rgbFromColor(c, scale)  {
 }
 
 module.exports = {
+    fgColorForBG: fgColorForBG,
     getColorMap: getColorMap,
     getColorMaps: getColorMaps,
     rgbFromColor: rgbFromColor,
