@@ -338,7 +338,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     processPickedColor: function(c) {},
 
     // override
-    processPickedValue: function(v) {},
+    processPickedVector: function(c, v) {},
 
     setData: function(d) {
         rsUtils.rsdbg('vtk setting data');
@@ -433,6 +433,9 @@ var VTKView = widgets.DOMWidgetView.extend({
                         let oArr = f.getOutputData().getPointData().getArrayByName(ORIENTATION_ARRAY);
                         const oid = pid * oArr.getNumberOfComponents();
                         const o = oArr.getData().slice(oid, oid + oArr.getNumberOfComponents());
+                        let v = o.map(function (dir) {
+                            return selectedValue * dir;
+                        });
 
                         const sArr = f.getOutputData().getPointData().getArrayByName(SCALAR_ARRAY);
                         const ns = sArr.getNumberOfComponents();
@@ -450,6 +453,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                             view.selectedPoint = -1;
                             view.selectedColor = [];
                             selectedValue = Math.min.apply(null, linArr.getData());
+                            v = [];
                         }
                         else {
                             sArr.getData()[sid] = 255;
@@ -461,7 +465,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                         info.pData.modified();
 
                         rsUtils.rsdbg(info.name, 'coords', coords, 'mag', selectedValue, 'orientation', o, 'color', sc);
-                        view.processPickedValue(selectedValue);
+                        view.processPickedVector(coords, v);
                         continue;
                     }
 

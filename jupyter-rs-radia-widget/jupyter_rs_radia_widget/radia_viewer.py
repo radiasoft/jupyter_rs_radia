@@ -251,7 +251,9 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.display()
         self._enable_controls(True)
         d = stop - start
-        self.solve_res_label.value = '{}.{:06}s'.format(d.seconds, d.microseconds)
+        self.solve_res_label.value = '{} ({}.{:06}s)'.format(
+            'Done', d.seconds, d.microseconds
+        )
 
     # show/hide/enable/disable controls based on current state
     def _update_layout(self):

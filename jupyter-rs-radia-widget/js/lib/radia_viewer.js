@@ -11,9 +11,9 @@ const template = [
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
         '<div class="vector-field-color-map-content" style="display: none; padding-left: 4px; padding-right: 4px;">',
             '<div class="vector-field-indicator">',
-                '<span class="vector-field-indicator-value" style="padding-left: 4px;">0</span>',
+                '<span class="vector-field-indicator-value" style="padding-left: 4px;">--</span>',
             '</div>',
-            '<div class="vector-field-color-map" style="height: 32px; overflow: hidden; border-color: black; border-width: 1px;">',
+            '<div class="vector-field-color-map" style="height: 32px; overflow: hidden; box-shadow: 0 0 0 1px black inset;">',
                 '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
@@ -77,11 +77,11 @@ const RadiaViewerView = controls.VBoxView.extend({
 
     // have to return a function constructed with this viewer, otherwise "this" will refer to
     // the child viewer
-    processPickedValue: function(viewer) {
-        return function (val) {
+    processPickedVector: function(viewer) {
+        return function (coords, vect) {
             let v = viewer.getVectors();
-            //rsUtils.rsdbg('radia processPickedValue', v);
-            viewer.setFieldIndicator(val, v.range[0], v.range[1], (v.units || ''));
+            rsUtils.rsdbg('radia processPickedVector', coords, vect);
+            viewer.setFieldIndicator(coords, vect, v.range[0], v.range[1], (v.units || ''));
         };
     },
 
@@ -112,7 +112,7 @@ const RadiaViewerView = controls.VBoxView.extend({
         }
 
         this.setFieldScaling();
-        this.setFieldIndicator(vectors.range[0], vectors.range[0], vectors.range[1], vectors.units);
+        this.setFieldIndicator([], [], vectors.range[0], vectors.range[1], vectors.units);
     },
 
     render: function() {
@@ -127,7 +127,7 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewerEl = $(view.vtkViewer.el).find('.vtk-widget');
             view.vtkViewerEl.append($(template));
 
-            view.vtkViewer.processPickedValue = view.processPickedValue(view);
+            view.vtkViewer.processPickedVector = view.processPickedVector(view);
         });
 
         // store current settings in cookies?
@@ -183,19 +183,26 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.vtkViewer.setVectorScaling(this.model.get('vector_scaling'));
     },
 
-    setFieldIndicator: function(val, min, max, units) {
+    setFieldIndicator: function(coords, vect, min, max, units) {
+        const val = Math.hypot(vect[0], vect[1], vect[2]);
+        const theta = 180 * Math.acos(vect[2] / (val || 1)) / Math.PI;
+        const phi = 180 * Math.atan(vect[1] / vect[0]) / Math.PI;
+        rsUtils.rsdbg('coords', coords, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
+        const txt = isNaN(val) ? '--' : rsUtils.roundToPlaces(val, 4) + ' ' + units;
+
         const w = this.select('.vector-field-color-map').width();
         const iw = this.select('.vector-field-indicator-pointer').width();
         const f = Math.abs(val - min) / ((max - min) || 1);
-        const l = w * f - 0.5 * iw;
+        const l = (isNaN(val) ? 0 : w * f) - 0.5 * iw;
         const g = guiUtils.getColorMap(this.model.get('field_color_map_name'), null, '');
         const i = Math.floor(f * (g.length - 1));
-        rsUtils.rsdbg('val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l, 'i', i, 'c', g[i]);
+        //rsUtils.rsdbg('coords', coords, 'val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l, 'i', i, 'c', g[i]);
+
         this.select('.vector-field-indicator-pointer')
             .css('margin-left', (l + 'px'))
             .css('color', guiUtils.fgColorForBG(g[i || 0], '#'));
         this.select('.vector-field-indicator-value')
-            .text(rsUtils.roundToPlaces(val, 4) + ' ' + units);
+            .text(txt);
     },
 
     setTitle: function() {
