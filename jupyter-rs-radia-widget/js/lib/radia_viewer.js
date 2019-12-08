@@ -18,12 +18,12 @@ const template = [
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
                 '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-                    '<span>0.0</span>',
-                    '<span>0.2</span>',
-                    '<span>0.4</span>',
-                    '<span>0.6</span>',
-                    '<span>0.8</span>',
-                    '<span>1.0</span>',
+                    '<span></span>',
+                    '<span></span>',
+                    '<span></span>',
+                    '<span></span>',
+                    '<span></span>',
+                    '<span></span>',
                 '</div>',
             '</div>',
         '</div>',
@@ -93,11 +93,19 @@ const RadiaViewerView = controls.VBoxView.extend({
         if (! vectors) {
             return;
         }
+        const showScale = vectors.vertices.length > 3;
 
         //TODO(mvk): real axis with tick marks, labels, etc.
         this.select('.vector-field-color-map-content').css(
             'display', 'block'
         );
+        this.select('.vector-field-color-map').css(
+            'display',  showScale? 'block' : 'none'
+        );
+        this.select('.vector-field-color-map-axis').css(
+            'display',  showScale? 'block' : 'none'
+        );
+
         let fieldTicks = this.select('.vector-field-color-map-axis span');
         let numTicks = fieldTicks.length;
         if (numTicks >= 2) {
@@ -184,11 +192,21 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     setFieldIndicator: function(coords, vect, min, max, units) {
+        // mapping a Float32Array does not work
+        let crd = [];
+        coords.forEach(function (c) {
+            crd.push(rsUtils.roundToPlaces(c, 2));
+        });
         const val = Math.hypot(vect[0], vect[1], vect[2]);
         const theta = 180 * Math.acos(vect[2] / (val || 1)) / Math.PI;
-        const phi = 180 * Math.atan(vect[1] / vect[0]) / Math.PI;
-        rsUtils.rsdbg('coords', coords, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
-        const txt = isNaN(val) ? '--' : rsUtils.roundToPlaces(val, 4) + ' ' + units;
+        const phi = 180 * Math.atan2(vect[1], vect[0]) / Math.PI;
+        //rsUtils.rsdbg('coords', coords, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
+        const txt = isNaN(val) ?
+            '--' :
+            rsUtils.roundToPlaces(val, 4) + ' ' + units +
+            ' θ ' + rsUtils.roundToPlaces(theta, 2) +
+            '° φ ' + rsUtils.roundToPlaces(phi, 2) +
+            '° at (' + crd + ')';
 
         const w = this.select('.vector-field-color-map').width();
         const iw = this.select('.vector-field-indicator-pointer').width();
@@ -196,7 +214,6 @@ const RadiaViewerView = controls.VBoxView.extend({
         const l = (isNaN(val) ? 0 : w * f) - 0.5 * iw;
         const g = guiUtils.getColorMap(this.model.get('field_color_map_name'), null, '');
         const i = Math.floor(f * (g.length - 1));
-        //rsUtils.rsdbg('coords', coords, 'val', val, 'min/max', min, max, 'frac', f, 'el width', w, 'i w', iw, 'left', l, 'i', i, 'c', g[i]);
 
         this.select('.vector-field-indicator-pointer')
             .css('margin-left', (l + 'px'))
