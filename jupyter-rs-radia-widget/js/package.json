@@ -36,6 +36,8 @@
   "dependencies": {
     "@jupyter-widgets/base": "^1.1 || ^2",
     "@jupyter-widgets/controls": "^1.5.2",
+    "d3": "^5.14.2",
+    "d3-scale": "^3.2.1",
     "jquery": "^3.4.1",
     "lodash": "^4.17.4",
     "os-locale": "^4.0.0",

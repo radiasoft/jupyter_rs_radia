@@ -149,6 +149,8 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
     def _update_layout(self):
         self.poly_alpha_grp.layout.display = \
             None if self._has_data_type(gui_utils.GEOM_TYPE_POLYS) else 'none'
+        self.obj_color_pick_grp.layout.display = \
+            None if self._has_data_type(gui_utils.GEOM_TYPE_POLYS) else 'none'
 
     def _viewer_displayed(self, o):
         # if we have data, this will trigger the refresh on the front end
@@ -206,7 +208,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             layout={'width': 'max-content'},
             value=self.content.selected_obj_color
         )
-        obj_color_pick_grp = widgets.HBox(
+        self.obj_color_pick_grp = widgets.HBox(
             [widgets.Label('Object color'), self.obj_color_pick]
         )
 
@@ -219,7 +221,7 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
         view_props_grp = widgets.HBox(
             [bg_color_pick_grp,
-             obj_color_pick_grp,
+             self.obj_color_pick_grp,
              self.poly_alpha_grp,
              self.edge_toggle]
         )

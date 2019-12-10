@@ -1,6 +1,8 @@
 let _ = require('lodash');
 let $ = require('jquery');
 let controls = require('@jupyter-widgets/controls');
+let d3 = require('d3');
+let d3Scale = require('d3-scale');
 let guiUtils = require('./gui_utils');
 let rsUtils = require('./rs_utils');
 //let rsjpyStyle = require('../css/rsjpy.css');
@@ -17,13 +19,10 @@ const template = [
                 '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
-                '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-                    '<span></span>',
-                    '<span></span>',
-                    '<span></span>',
-                    '<span></span>',
-                    '<span></span>',
-                    '<span></span>',
+                '<div class="vector-field-color-map-axis-ticks">',
+                    '<svg></svg>',
+                '</div>',
+                '<div class="vector-field-color-map-axis-scale" style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
                 '</div>',
             '</div>',
         '</div>',
@@ -57,7 +56,17 @@ function getVTKView(o) {
 
 const RadiaViewerView = controls.VBoxView.extend({
 
-    isLoaded: false,
+    fieldColorMapAxis: null,
+    scale: null,
+
+    //TODO(mvk): read schema from file
+    schema: {
+        field_color_maps: guiUtils.getColorMaps(),
+        field_color_map_name: 'viridis',
+        num_field_cmap_ticks: 6,
+        vector_scaling_types: ['Uniform', 'Linear', 'Log'],
+        vector_scaling: 'Uniform',
+    },
     vtkViewer: null,
     vtkViewerEl: null,
 
@@ -80,7 +89,6 @@ const RadiaViewerView = controls.VBoxView.extend({
     processPickedVector: function(viewer) {
         return function (coords, vect) {
             let v = viewer.getVectors();
-            rsUtils.rsdbg('radia processPickedVector', coords, vect);
             viewer.setFieldIndicator(coords, vect, v.range[0], v.range[1], (v.units || ''));
         };
     },
@@ -94,6 +102,9 @@ const RadiaViewerView = controls.VBoxView.extend({
             return;
         }
         const showScale = vectors.vertices.length > 3;
+        this.select('.vector-field-color-map-axis-ticks svg')
+            .css('width', '100%')
+            .css('height', '8');
 
         //TODO(mvk): real axis with tick marks, labels, etc.
         this.select('.vector-field-color-map-content').css(
@@ -107,15 +118,26 @@ const RadiaViewerView = controls.VBoxView.extend({
         );
 
         let fieldTicks = this.select('.vector-field-color-map-axis span');
+        const ticks = this.select('.vector-field-color-map-axis-ticks svg line');
         let numTicks = fieldTicks.length;
         if (numTicks >= 2) {
+            this.scale = d3Scale.scaleLinear()
+                .domain(vectors.range)
+                .range([0, this.select('.vector-field-color-map-axis').width()]);
+            this.fieldColorMapAxis = d3.axisBottom(this.scale)
+                .ticks(this.schema.num_field_cmap_ticks);
+
             let minV = vectors.range[0];
             let maxV = vectors.range[1];
-            fieldTicks[0].textContent = ('' + rsUtils.roundToPlaces(minV, 2));
-            fieldTicks[numTicks - 1].textContent = ('' + rsUtils.roundToPlaces(maxV, 2));
+            fieldTicks[0].textContent = '' + rsUtils.roundToPlaces(minV, 2);
+            fieldTicks[numTicks - 1].textContent = '' + rsUtils.roundToPlaces(maxV, 2);
             let dv = (maxV - minV) / (numTicks - 1);
             for (let i = 1; i < numTicks - 1; ++i) {
+                const fp = $(fieldTicks[i]).position().left;
                 fieldTicks[i].textContent = ('' + rsUtils.roundToPlaces(i * dv, 2));
+                if (ticks[i - 1]) {
+                    $(ticks[i - 1]).attr('transform', 'translate(' + fp + ', 0)');
+                }
             }
         }
 
@@ -134,11 +156,23 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewer = o;
             view.vtkViewerEl = $(view.vtkViewer.el).find('.vtk-widget');
             view.vtkViewerEl.append($(template));
+            const scale = view.select('.vector-field-color-map-axis-scale');
+            const ticks = view.select('.vector-field-color-map-axis-ticks svg');
+            const svgNS = 'http://www.w3.org/2000/svg';
+            for (let i = 1; i <= view.schema.num_field_cmap_ticks; ++i) {
+                $(scale).append('<span>');
+                if (i < view.schema.num_field_cmap_ticks - 1) {
+                    // translate when view is available
+                    $(document.createElementNS(svgNS,'line'))
+                        .attr({x2: 0, y2: 6, stroke: 'black'})
+                        .appendTo($(ticks));
+                }
+            }
 
             view.vtkViewer.processPickedVector = view.processPickedVector(view);
         });
 
-        // store current settings in cookies?
+        // store current settings in cookies?  Or serialized widget?
         //let c = document.cookie;
         //rsUtils.rsdbg('cookies', c);
 
@@ -150,13 +184,8 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
 
         // set dropdown contents and initial values
-        // change to "schema?"
-        this.model.set('client_props', {
-            field_color_maps: guiUtils.getColorMaps(),
-            field_color_map_name: 'viridis',
-            vector_scaling_types: ['Uniform', 'Linear', 'Log'],
-            vector_scaling: 'Uniform',
-        });
+        // change to "schema?"  Place in actual schema file?
+        this.model.set('client_props', this.schema);
 
         // required to get the python model in sync right away
         this.touch();
@@ -203,10 +232,10 @@ const RadiaViewerView = controls.VBoxView.extend({
         //rsUtils.rsdbg('coords', coords, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
         const txt = isNaN(val) ?
             '--' :
-            rsUtils.roundToPlaces(val, 4) + ' ' + units +
-            ' θ ' + rsUtils.roundToPlaces(theta, 2) +
-            '° φ ' + rsUtils.roundToPlaces(phi, 2) +
-            '° at (' + crd + ')';
+            rsUtils.roundToPlaces(val, 4) + units +
+            '  θ ' + rsUtils.roundToPlaces(theta, 2) +
+            '°  φ ' + rsUtils.roundToPlaces(phi, 2) +
+            '°  at (' + crd + ')';
 
         const w = this.select('.vector-field-color-map').width();
         const iw = this.select('.vector-field-indicator-pointer').width();

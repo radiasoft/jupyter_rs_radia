@@ -196,7 +196,6 @@ var VTKView = widgets.DOMWidgetView.extend({
     actorInfo: {},
     cPicker: null,
     fsRenderer: null,
-    isLoaded: false,
     orientationMarker: null,
     ptPicker: null,
     selectedCell: -1,
@@ -339,24 +338,6 @@ var VTKView = widgets.DOMWidgetView.extend({
 
     // override
     processPickedVector: function(c, v) {},
-
-    setData: function(d) {
-        rsUtils.rsdbg('vtk setting data');
-        this.model.set('model_data', d);
-        this.refresh();
-    },
-
-    sharesGroup: function(actor1, actor2) {
-        if (! actor1 || ! actor2) {
-            return false;
-        }
-        const g1 = this.getInfoForActor(actor1).name.split('_')[1];
-        const g2 = this.getInfoForActor(actor2).name.split('_')[1];
-        if (! g1 || ! g2) {
-            return false;
-        }
-        return g1 === g2;
-    },
 
     refresh: function(o) {
 
@@ -532,10 +513,10 @@ var VTKView = widgets.DOMWidgetView.extend({
             this.setMarkerVisible();
         }
 
-        // need point picker for vector fields and cell picker for magnet objects
+        // need point picker for vectors and cell picker for polys
         if (! this.ptPicker) {
             this.ptPicker = vtk.Rendering.Core.vtkPointPicker.newInstance();
-            this.ptPicker.setPickFromList(1);
+            this.ptPicker.setPickFromList(true);
             this.ptPicker.initializePickList();
         }
 
@@ -554,7 +535,6 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
 
-        // the data to include are specific to each case and should be settable
         let totalBounds = [
             Number.MAX_VALUE, -Number.MAX_VALUE,
             Number.MAX_VALUE, -Number.MAX_VALUE,
@@ -645,7 +625,6 @@ var VTKView = widgets.DOMWidgetView.extend({
         // store current settings in cookies?
         //let c = document.cookie;
         //rsUtils.rsdbg('cookies', c);
-        //this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:selected_obj_color', this.setSelectedObjColor, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
@@ -653,20 +632,13 @@ var VTKView = widgets.DOMWidgetView.extend({
         this.model.on('change:show_edges', this.setEdgesVisible, this);
         this.model.on('change:title', this.refresh, this);
         this.model.on('change:vector_color_map_name', this.setVectorColorMap, this);
-        //if (! this.isLoaded) {  // don't need this?
-            $(this.el).append($(template));
-            this.setTitle();
-            //this.isLoaded = true;
-            this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
-        //}
+        $(this.el).append($(template));
+        this.setTitle();
+        this.listenTo(this.model, 'msg:custom', this.handleCustomMessages);
     },
 
     resetView: function() {
         this.setCam([1, -0.4, 0], [0, 0, 1]);
-    },
-
-    setAlpha: function() {
-
     },
 
     // may have to get axis orientation from data?
@@ -688,9 +660,14 @@ var VTKView = widgets.DOMWidgetView.extend({
         cam.setFocalPoint(0, 0, 0);
         cam.setViewUp(vu[0], vu[1], vu[2]);
         r.resetCamera();
-        //cam.zoom(1.3);
         this.orientationMarker.updateMarkerOrientation();
         this.fsRenderer.getRenderWindow().render();
+    },
+
+    setData: function(d) {
+        rsUtils.rsdbg('vtk setting data');
+        this.model.set('model_data', d);
+        this.refresh();
     },
 
     // need to allow setting color for entire actor, single poly, or 3d cell
@@ -747,7 +724,6 @@ var VTKView = widgets.DOMWidgetView.extend({
         for (let name in this.actorInfo) {
             let info = this.getActorInfo(name);
             // arrows just turn black when edges are on
-            //if (info.type === VECTOR_ACTOR) {
             if (info.type === vtkUtils.GEOM_TYPE_VECTS) {
                 continue;
             }
@@ -799,7 +775,6 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setVectorColorMap: function() {
-        //const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         const actor = this.getActorsOfType(vtkUtils.GEOM_TYPE_VECTS)[0];
         if (! actor) {
             //rsUtils.rslog('vtk setVectorColorMap: No vector actor');
@@ -816,7 +791,6 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setVectorScaling: function(vs) {
-        //const actor = this.getActorsOfType(VECTOR_ACTOR)[0];
         const actor = this.getActorsOfType(vtkUtils.GEOM_TYPE_VECTS)[0];
         if (! actor) {
             return;
@@ -837,6 +811,23 @@ var VTKView = widgets.DOMWidgetView.extend({
             mapper.setScaleModeToScaleByComponents();
         }
         this.fsRenderer.getRenderWindow().render();
+    },
+
+    select: function(selector) {
+        return $(this.el).find(selector);
+    },
+
+    // better way to do this...
+    sharesGroup: function(actor1, actor2) {
+        if (! actor1 || ! actor2) {
+            return false;
+        }
+        const g1 = this.getInfoForActor(actor1).name.split('_')[1];
+        const g2 = this.getInfoForActor(actor2).name.split('_')[1];
+        if (! g1 || ! g2) {
+            return false;
+        }
+        return g1 === g2;
     },
 
 });
