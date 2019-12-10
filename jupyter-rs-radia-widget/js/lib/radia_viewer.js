@@ -19,10 +19,10 @@ const template = [
                 '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
-                '<div class="vector-field-color-map-axis-ticks">',
-                    '<svg></svg>',
-                '</div>',
-                '<div class="vector-field-color-map-axis-scale" style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
+                //'<div class="vector-field-color-map-axis-ticks">',
+                    '<svg><g class="axis" style="font-size: small;"></g></svg>',
+                //'</div>',
+    //'<div class="vector-field-color-map-axis-scale" style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
                 '</div>',
             '</div>',
         '</div>',
@@ -57,7 +57,7 @@ function getVTKView(o) {
 const RadiaViewerView = controls.VBoxView.extend({
 
     fieldColorMapAxis: null,
-    scale: null,
+    fieldColorMapScale: null,
 
     //TODO(mvk): read schema from file
     schema: {
@@ -89,7 +89,7 @@ const RadiaViewerView = controls.VBoxView.extend({
     processPickedVector: function(viewer) {
         return function (coords, vect) {
             let v = viewer.getVectors();
-            viewer.setFieldIndicator(coords, vect, v.range[0], v.range[1], (v.units || ''));
+            viewer.setFieldIndicator(coords, vect, (v.units || ''));
         };
     },
 
@@ -102,9 +102,9 @@ const RadiaViewerView = controls.VBoxView.extend({
             return;
         }
         const showScale = vectors.vertices.length > 3;
-        this.select('.vector-field-color-map-axis-ticks svg')
-            .css('width', '100%')
-            .css('height', '8');
+        this.select('.vector-field-color-map-axis > svg', 'd3')
+            .attr('width', '100%')
+            .attr('height', '24px');
 
         //TODO(mvk): real axis with tick marks, labels, etc.
         this.select('.vector-field-color-map-content').css(
@@ -117,32 +117,17 @@ const RadiaViewerView = controls.VBoxView.extend({
             'display',  showScale? 'block' : 'none'
         );
 
-        let fieldTicks = this.select('.vector-field-color-map-axis span');
-        const ticks = this.select('.vector-field-color-map-axis-ticks svg line');
-        let numTicks = fieldTicks.length;
-        if (numTicks >= 2) {
-            this.scale = d3Scale.scaleLinear()
+        if (this.schema.num_field_cmap_ticks >= 2) {
+            rsUtils.rsdbg('scaling dom', vectors.range, 'r', [0, this.select('.vector-field-color-map-axis').width()]);
+            this.fieldColorMapScale = d3Scale.scaleLinear()
                 .domain(vectors.range)
                 .range([0, this.select('.vector-field-color-map-axis').width()]);
-            this.fieldColorMapAxis = d3.axisBottom(this.scale)
-                .ticks(this.schema.num_field_cmap_ticks);
-
-            let minV = vectors.range[0];
-            let maxV = vectors.range[1];
-            fieldTicks[0].textContent = '' + rsUtils.roundToPlaces(minV, 2);
-            fieldTicks[numTicks - 1].textContent = '' + rsUtils.roundToPlaces(maxV, 2);
-            let dv = (maxV - minV) / (numTicks - 1);
-            for (let i = 1; i < numTicks - 1; ++i) {
-                const fp = $(fieldTicks[i]).position().left;
-                fieldTicks[i].textContent = ('' + rsUtils.roundToPlaces(i * dv, 2));
-                if (ticks[i - 1]) {
-                    $(ticks[i - 1]).attr('transform', 'translate(' + fp + ', 0)');
-                }
-            }
+            this.fieldColorMapAxis.scale(this.fieldColorMapScale);
+            this.select('.vector-field-color-map-axis > svg > g', 'd3').call(this.fieldColorMapAxis);
         }
 
         this.setFieldScaling();
-        this.setFieldIndicator([], [], vectors.range[0], vectors.range[1], vectors.units);
+        this.processPickedVector(this)([], []);
     },
 
     render: function() {
@@ -156,18 +141,10 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewer = o;
             view.vtkViewerEl = $(view.vtkViewer.el).find('.vtk-widget');
             view.vtkViewerEl.append($(template));
-            const scale = view.select('.vector-field-color-map-axis-scale');
-            const ticks = view.select('.vector-field-color-map-axis-ticks svg');
-            const svgNS = 'http://www.w3.org/2000/svg';
-            for (let i = 1; i <= view.schema.num_field_cmap_ticks; ++i) {
-                $(scale).append('<span>');
-                if (i < view.schema.num_field_cmap_ticks - 1) {
-                    // translate when view is available
-                    $(document.createElementNS(svgNS,'line'))
-                        .attr({x2: 0, y2: 6, stroke: 'black'})
-                        .appendTo($(ticks));
-                }
-            }
+            view.fieldColorMapAxis = d3.axisBottom(d3Scale.scaleLinear())
+                .ticks(view.schema.num_field_cmap_ticks);
+            view.select('.vector-field-color-map-axis .axis', 'd3')
+                .call(view.fieldColorMapAxis);
 
             view.vtkViewer.processPickedVector = view.processPickedVector(view);
         });
@@ -192,8 +169,14 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
 
-    select: function(selector) {
-        return $(this.el).find(selector);
+    select: function(selector, module) {
+        if (! module || module === '$') {
+            return $(this.el).find(selector);
+        }
+        if (module === 'd3') {
+            return d3.select(selector);
+        }
+        return null;
     },
 
     setFieldColorMap: function() {
@@ -220,7 +203,7 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.vtkViewer.setVectorScaling(this.model.get('vector_scaling'));
     },
 
-    setFieldIndicator: function(coords, vect, min, max, units) {
+    setFieldIndicator: function(coords, vect, units) {
         // mapping a Float32Array does not work
         let crd = [];
         coords.forEach(function (c) {
@@ -237,10 +220,12 @@ const RadiaViewerView = controls.VBoxView.extend({
             '°  φ ' + rsUtils.roundToPlaces(phi, 2) +
             '°  at (' + crd + ')';
 
-        const w = this.select('.vector-field-color-map').width();
+        const min = this.fieldColorMapScale.domain()[0];
+        const max = this.fieldColorMapScale.domain()[1];
+
         const iw = this.select('.vector-field-indicator-pointer').width();
         const f = Math.abs(val - min) / ((max - min) || 1);
-        const l = (isNaN(val) ? 0 : w * f) - 0.5 * iw;
+        const l = this.fieldColorMapScale((isNaN(val) ? min : val)) - 0.5 * iw;
         const g = guiUtils.getColorMap(this.model.get('field_color_map_name'), null, '');
         const i = Math.floor(f * (g.length - 1));
 
