@@ -80,7 +80,9 @@ function objToPolyData(json, includeTypes) {
         includeTypes = GEOM_TYPES;
     }
 
+    const typeInfo = {};
     GEOM_TYPES.forEach(function (type, tIdx) {
+        typeInfo[type] = {};
         if (includeTypes.indexOf(type) < 0) {
             //rsUtils.rsdbg('Ignoring data for type', type);
             return;
@@ -103,6 +105,7 @@ function objToPolyData(json, includeTypes) {
 
         let tArr = [];
         let tOffset = points.length / 3;
+        typeInfo[type].offset = tOffset;
         for (let i = 0; i < t.vertices.length; i++) {
             points.push(t.vertices[i]);
         }
@@ -142,7 +145,7 @@ function objToPolyData(json, includeTypes) {
 
     pd.buildCells();
 
-    return pd;
+    return {data: pd, typeInfo: typeInfo};
 }
 
 function vectorsToPolyData(json) {

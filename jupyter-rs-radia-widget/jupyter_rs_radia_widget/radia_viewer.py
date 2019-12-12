@@ -34,7 +34,8 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     _is_displayed = False
 
     current_geom = Unicode('').tag(sync=True)
-    current_field_path = [0.0, 0.0, 0.0]
+    #current_field_path = [0.0, 0.0, 0.0]
+    current_field_points = [[0.0, 0.0, 0.0]]
 
     field_color_map_name = Unicode('').tag(sync=True)
 
@@ -58,6 +59,9 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.mgr.add_geom(geom_name, geom)
         self.geom_list.options = [n for n in self.mgr.get_geoms()]
 
+    def add_to_field_path(self, pt):
+        self.current_field_points.extend(pt)
+
     # 'API' calls should support 'command line' style of invocation, and not
     # rely solely on current widget settings
     def display(self, g_name=None, v_type=None, f_type=None):
@@ -80,7 +84,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             elif f_type == FIELD_TYPE_MAG_B:
                 self.model_data = self.mgr.mag_field_to_data(
                     g_name,
-                    self.current_field_path
+                    self._get_current_field_path()
                 )
         #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
@@ -90,6 +94,9 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     def refresh(self):
         self._set_title()
         self.send({'type': 'refresh'})
+
+    def remove_from_field_path(self, p_idx):
+        pass
 
     def __init__(self, mgr=None):
         self.model_data = {}
@@ -204,9 +211,12 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             self.solve_grp,
         ])
 
+    def _get_current_field_path(self):
+        return [item for sublist in self.current_field_points for item in sublist]
+
     def _enable_controls(self, enabled):
         for c in self.controls:
-            c.disabled =  not enabled
+            c.disabled = not enabled
 
     def _radia_displayed(self, o):
         self.geom_list.value = self.current_geom

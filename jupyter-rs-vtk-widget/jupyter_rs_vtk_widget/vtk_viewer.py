@@ -20,10 +20,12 @@ class VTK(widgets.DOMWidget, rs_utils.RSDebugger):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
+    actor_state = Dict(default_value={}).tag(sync=True)
     bg_color = widgets.Color('#ffffff').tag(sync=True)
-    selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
+    cam_state = Dict(default_value={}).tag(sync=True)
     model_data = Dict(default_value={}).tag(sync=True)
     poly_alpha = Float(1.0).tag(sync=True)
+    selected_obj_color = widgets.Color('#ffffff').tag(sync=True)
     show_edges = Bool(True).tag(sync=True)
     show_marker = Bool(True).tag(sync=True)
     title = Unicode('').tag(sync=True)

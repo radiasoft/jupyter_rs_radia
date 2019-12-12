@@ -19,11 +19,7 @@ const template = [
                 '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
             '<div class="vector-field-color-map-axis" style="height: 32px;">',
-                //'<div class="vector-field-color-map-axis-ticks">',
-                    '<svg><g class="axis" style="font-size: small;"></g></svg>',
-                //'</div>',
-    //'<div class="vector-field-color-map-axis-scale" style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: space-between;">',
-                '</div>',
+                '<svg width="100%" height="24px"><g class="axis" style="font-size: small;"></g></svg>',
             '</div>',
         '</div>',
     '</div>',
@@ -102,9 +98,6 @@ const RadiaViewerView = controls.VBoxView.extend({
             return;
         }
         const showScale = vectors.vertices.length > 3;
-        this.select('.vector-field-color-map-axis > svg', 'd3')
-            .attr('width', '100%')
-            .attr('height', '24px');
 
         //TODO(mvk): real axis with tick marks, labels, etc.
         this.select('.vector-field-color-map-content').css(
@@ -118,7 +111,6 @@ const RadiaViewerView = controls.VBoxView.extend({
         );
 
         if (this.schema.num_field_cmap_ticks >= 2) {
-            rsUtils.rsdbg('scaling dom', vectors.range, 'r', [0, this.select('.vector-field-color-map-axis').width()]);
             this.fieldColorMapScale = d3Scale.scaleLinear()
                 .domain(vectors.range)
                 .range([0, this.select('.vector-field-color-map-axis').width()]);
@@ -126,6 +118,7 @@ const RadiaViewerView = controls.VBoxView.extend({
             this.select('.vector-field-color-map-axis > svg > g', 'd3').call(this.fieldColorMapAxis);
         }
 
+        this.setFieldColorMap();
         this.setFieldScaling();
         this.processPickedVector(this)([], []);
     },
@@ -149,11 +142,6 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewer.processPickedVector = view.processPickedVector(view);
         });
 
-        // store current settings in cookies?  Or serialized widget?
-        //let c = document.cookie;
-        //rsUtils.rsdbg('cookies', c);
-
-        //this.model.on('change:model_data', this.refresh, this);
         this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
         this.model.on('change:title', this.setTitle, this);
         this.model.on('change:vector_scaling', this.setFieldScaling, this);
