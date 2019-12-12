@@ -11,10 +11,10 @@ let widgets = require('@jupyter-widgets/base');
 const template = [
     '<div class="radia-viewer">',
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
+        '<div class="selection-info">',
+          '<span class="selection-info-value" style="padding-left: 4px;"></span>',
+        '</div>',
         '<div class="vector-field-color-map-content" style="display: none; padding-left: 4px; padding-right: 4px;">',
-            '<div class="vector-field-indicator">',
-                '<span class="vector-field-indicator-value" style="padding-left: 4px;">--</span>',
-            '</div>',
             '<div class="vector-field-color-map" style="height: 32px; overflow: hidden; box-shadow: 0 0 0 1px black inset;">',
                 '<span class="vector-field-indicator-pointer" style="font-size: x-large;">▼</span>',
             '</div>',
@@ -82,10 +82,18 @@ const RadiaViewerView = controls.VBoxView.extend({
 
     // have to return a function constructed with this viewer, otherwise "this" will refer to
     // the child viewer
-    processPickedVector: function(viewer) {
-        return function (coords, vect) {
+    processSelectedObject: function(viewer) {
+        return function (objectInfo) {
+            viewer.setSelectionText((objectInfo || {}).group || '--');
+        };
+    },
+
+    // have to return a function constructed with this viewer, otherwise "this" will refer to
+    // the child viewer
+    processSelectedVector: function(viewer) {
+        return function (point, vect) {
             let v = viewer.getVectors();
-            viewer.setFieldIndicator(coords, vect, (v.units || ''));
+            viewer.setFieldIndicator(point, vect, (v.units || ''));
         };
     },
 
@@ -120,7 +128,8 @@ const RadiaViewerView = controls.VBoxView.extend({
 
         this.setFieldColorMap();
         this.setFieldScaling();
-        this.processPickedVector(this)([], []);
+        this.processSelectedObject(this)();
+        this.processSelectedVector(this)([], []);
     },
 
     render: function() {
@@ -139,7 +148,9 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.select('.vector-field-color-map-axis .axis', 'd3')
                 .call(view.fieldColorMapAxis);
 
-            view.vtkViewer.processPickedVector = view.processPickedVector(view);
+            view.setTitle();
+            view.vtkViewer.processPickedObject = view.processSelectedObject(view);
+            view.vtkViewer.processPickedVector = view.processSelectedVector(view);
         });
 
         this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
@@ -191,22 +202,22 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.vtkViewer.setVectorScaling(this.model.get('vector_scaling'));
     },
 
-    setFieldIndicator: function(coords, vect, units) {
+    setFieldIndicator: function(point, vect, units) {
         // mapping a Float32Array does not work
-        let crd = [];
-        coords.forEach(function (c) {
-            crd.push(rsUtils.roundToPlaces(c, 2));
+        let pt = [];
+        point.forEach(function (c) {
+            pt.push(rsUtils.roundToPlaces(c, 2));
         });
         const val = Math.hypot(vect[0], vect[1], vect[2]);
         const theta = 180 * Math.acos(vect[2] / (val || 1)) / Math.PI;
         const phi = 180 * Math.atan2(vect[1], vect[0]) / Math.PI;
-        //rsUtils.rsdbg('coords', coords, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
+        //rsUtils.rsdbg('point', point, 'val', val, 'theta', theta, 'phi', phi, 'min/max', min, max);
         const txt = isNaN(val) ?
             '--' :
             rsUtils.roundToPlaces(val, 4) + units +
             '  θ ' + rsUtils.roundToPlaces(theta, 2) +
             '°  φ ' + rsUtils.roundToPlaces(phi, 2) +
-            '°  at (' + crd + ')';
+            '°  at (' + pt + ')';
 
         const min = this.fieldColorMapScale.domain()[0];
         const max = this.fieldColorMapScale.domain()[1];
@@ -220,7 +231,11 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.select('.vector-field-indicator-pointer')
             .css('margin-left', (l + 'px'))
             .css('color', guiUtils.fgColorForBG(g[i || 0], '#'));
-        this.select('.vector-field-indicator-value')
+        this.setSelectionText(txt);
+    },
+
+    setSelectionText: function(txt) {
+        this.select('.selection-info-value')
             .text(txt);
     },
 

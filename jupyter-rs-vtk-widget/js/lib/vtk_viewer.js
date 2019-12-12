@@ -224,10 +224,14 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
         this.actorInfo[name] = info;
 
+        // for now assume lines and polys are uniform in color -
         let s = this.model.get('actor_state');
-        s[name] = {
-            color: info.scalars.getData().slice(0, 3),
-        };
+        if (! s[name]) {
+            s[name] = {
+                color: info.scalars.getData().slice(0, 3),
+                alpha: info.scalars.getData().slice(3, 4)
+            };
+        }
         this.model.set('actor_state', s);
 
         this.fsRenderer.getRenderer().addActor(actor);
@@ -305,6 +309,9 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
         const info = this.getInfoForActor(this.getActor(name));
+        rsUtils.rsdbg(name, 'loaded state', s);
+        this.setColor(info, info.type, s.color, s.alpha);
+        this.fsRenderer.getRenderWindow().render();
     },
 
     loadCam: function() {
@@ -318,10 +325,10 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     // override
-    processPickedColor: function(c) {},
+    processPickedObject: function(o) {},
 
     // override
-    processPickedVector: function(c, v) {},
+    processPickedVector: function(p, v) {},
 
     refresh: function(o) {
 
@@ -340,7 +347,8 @@ var VTKView = widgets.DOMWidgetView.extend({
                     return;
                 }
 
-                // ??
+                // regular clicks happen when spinning the scene - we'll select/deselect with ctrl-click.
+                // Though one also rotates in that case, it's less common
                 if (! callData.controlKey) {
                     return;
                 }
@@ -430,7 +438,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                         }
                         info.pData.modified();
 
-                        rsUtils.rsdbg(info.name, 'coords', coords, 'mag', selectedValue, 'orientation', o, 'color', sc);
+                        //rsUtils.rsdbg(info.name, 'coords', coords, 'mag', selectedValue, 'orientation', o, 'color', sc);
                         view.processPickedVector(coords, v);
                         continue;
                     }
@@ -474,7 +482,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                     let a = view.getActor(name);
                     view.setEdgeColor(a, view.sharesGroup(a, view.selectedObject) ? highlight : [0, 0, 0]);
                 }
-                view.processPickedColor(selectedColor);
+                view.processPickedObject(view.getInfoForActor(view.selectedObject));
 
             });
 
@@ -582,6 +590,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 const gname = name + '.' + i;
                 const aname = gname + '.' + t;
                 view.addActor(aname, gname, actor, t, PICKABLE_TYPES.indexOf(t) >= 0);
+                view.loadActorState(aname);
             });
 
             for(let j = 0; j < 3; ++j) {
@@ -610,7 +619,7 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     render: function() {
-        rsUtils.rsdbg('vtk render');
+        rsUtils.rsdbg('vtk render model', this.model);
         this.model.on('change:bg_color', this.setBgColor, this);
         this.model.on('change:selected_obj_color', this.setSelectedObjColor, this);
         this.model.on('change:poly_alpha', this.setPolyAlpha, this);
@@ -661,8 +670,10 @@ var VTKView = widgets.DOMWidgetView.extend({
     },
 
     setColor: function(info, type, color, alpha=255) {
+        //rsUtils.rsdbg(info.name, 'setColor', color, alpha);
         const s = info.scalars;
         if (! s) {
+            //rsUtils.rsdbg(info.name, 'setColor NO SCALARS');
             return;
         }
         const colors = s.getData();
@@ -681,6 +692,13 @@ var VTKView = widgets.DOMWidgetView.extend({
             colors[inds[j] + nc - 1] = alpha;
             i += nc;
         }
+        let states = this.model.get('actor_state');
+        states[info.name].alpha = alpha;
+        if (color) {
+            states[info.name].color = color;
+        }
+        this.model.set('actor_state', states);
+
         info.pData.modified();
     },
 
@@ -698,7 +716,6 @@ var VTKView = widgets.DOMWidgetView.extend({
             return;
         }
         let info = this.getInfoForActor(actor);
-        rsUtils.rsdbg('setEdgeColor', info.name);
         actor.getProperty().setEdgeColor(color[0], color[1], color[2]);
         this.setColor(info, vtkUtils.GEOM_TYPE_LINES, color);
         //this.fsRenderer.getRenderWindow().render();
