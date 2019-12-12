@@ -128,33 +128,16 @@ function getVectFormula(vectors, colorMapName) {
     };
 }
 
-function typeForName(name) {
-    for (let i = 0; i < vtkUtils.GEOM_TYPES.length; ++i) {
-        if (name.startsWith(vtkUtils.GEOM_TYPES[i])) {
-            return vtkUtils.GEOM_TYPES[i];
-        }
-    }
-    return null;
-}
-
 function numColors(polyData, type) {
     if (vtkUtils.GEOM_OBJ_TYPES.indexOf(type) < 0) {
         return 0;
     }
     if (type === vtkUtils.GEOM_TYPE_LINES) {
-        return numLineColors(polyData);
+        return numDataColors(polyData.getLines().getData());
     }
     if (type === vtkUtils.GEOM_TYPE_POLYS) {
-        return numPolyColors(polyData);
+        return numDataColors(polyData.getPolys().getData());
     }
-}
-
-function numLineColors(polyData) {
-    return numDataColors(polyData.getLines().getData());
-}
-
-function numPolyColors(polyData) {
-    return numDataColors(polyData.getPolys().getData());
 }
 
 // lines and poly data arrays look like:
@@ -241,11 +224,11 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
         this.actorInfo[name] = info;
 
-        //let s = this.model.get('actor_state');
-        //s[name] = {
-        //    color: info.scalars.getData().slice(0, 3),
-        //};
-        //this.model.set('actor_state', s);
+        let s = this.model.get('actor_state');
+        s[name] = {
+            color: info.scalars.getData().slice(0, 3),
+        };
+        this.model.set('actor_state', s);
 
         this.fsRenderer.getRenderer().addActor(actor);
         if (pickable) {
@@ -274,8 +257,8 @@ var VTKView = widgets.DOMWidgetView.extend({
         const view = this;
         return Object.keys(this.actorInfo)
             .filter(function (name) {
-            return name.startsWith(typeName);
-        })
+                return view.getActorInfo(name).type === typeName;
+            })
             .map(function (name) {
                 return view.getActorInfo(name);
             })
@@ -390,6 +373,7 @@ var VTKView = widgets.DOMWidgetView.extend({
                 let selectedColor = [];
                 let selectedValue = Number.NaN;
                 let eligibleActors = [];
+                let highlightVectColor = [255, 0, 0];
                 for (let aIdx in pas) {
                     let actor = pas[aIdx];
                     //let pos = posArr[aIdx];
@@ -427,9 +411,9 @@ var VTKView = widgets.DOMWidgetView.extend({
                         // toggle color?
                         if (view.selectedColor.length) {
                             const ssid = view.selectedPoint * ns;
-                            sArr.getData()[ssid] = view.selectedColor[0];
-                            sArr.getData()[ssid + 1] = view.selectedColor[1];
-                            sArr.getData()[ssid + 2] = view.selectedColor[2];
+                            view.selectedColor.forEach(function (c, i) {
+                                sArr.getData()[ssid + i] = c;
+                            });
                         }
                         if (pid === view.selectedPoint) {
                             view.selectedPoint = -1;
@@ -438,9 +422,9 @@ var VTKView = widgets.DOMWidgetView.extend({
                             v = [];
                         }
                         else {
-                            sArr.getData()[sid] = 255;
-                            sArr.getData()[sid + 1] = 0;
-                            sArr.getData()[sid + 2] = 0;
+                            highlightVectColor.forEach(function (c, i) {
+                                sArr.getData()[sid + i] = c;
+                            });
                             view.selectedPoint = pid;
                             view.selectedColor = sc;
                         }
