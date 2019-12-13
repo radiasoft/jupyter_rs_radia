@@ -77,7 +77,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data.lines.lengths.extend(l_data.lines.lengths)
         v_data.lines.colors.extend(l_data.lines.colors)
 
-        return PKDict(name=name + '.Field', data=[v_data])
+        return PKDict(name=name + '.Field', id=self.get_geom(name), data=[v_data])
 
     def geom_to_data(self, name, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
@@ -91,7 +91,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             # for g in self._get_all_geom(geom):
                 d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
 
-        return PKDict(name=name + '.Geom', data=d_arr)
+        return PKDict(name=name + '.Geom', id=geom, data=d_arr)
 
     def get_geom(self, name):
         return self._geoms[name].g

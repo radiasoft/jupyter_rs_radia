@@ -542,8 +542,9 @@ var VTKView = widgets.DOMWidgetView.extend({
         }
 
         const name = sceneData.name;
+        const id = sceneData.id;
         let data = sceneData.data;
-        rsUtils.rsdbg('got data', data, 'for', name);
+        rsUtils.rsdbg('got data', data, 'for', name, id);
         for (let i = 0; i < data.length; ++i) {
 
             const sceneDatum = data[i];

@@ -34,7 +34,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     _is_displayed = False
 
     current_geom = Unicode('').tag(sync=True)
-    #current_field_path = [0.0, 0.0, 0.0]
     current_field_points = [[0.0, 0.0, 0.0]]
 
     field_color_map_name = Unicode('').tag(sync=True)
@@ -59,9 +58,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.mgr.add_geom(geom_name, geom)
         self.geom_list.options = [n for n in self.mgr.get_geoms()]
 
-    def add_to_field_path(self, pt):
-        self.current_field_points.extend(pt)
-
     # 'API' calls should support 'command line' style of invocation, and not
     # rely solely on current widget settings
     def display(self, g_name=None, v_type=None, f_type=None):
@@ -84,7 +80,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             elif f_type == FIELD_TYPE_MAG_B:
                 self.model_data = self.mgr.mag_field_to_data(
                     g_name,
-                    self._get_current_field_path()
+                    self._get_current_field_points()
                 )
         #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
@@ -95,8 +91,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self._set_title()
         self.send({'type': 'refresh'})
 
-    def remove_from_field_path(self, p_idx):
-        pass
 
     def __init__(self, mgr=None):
         self.model_data = {}
@@ -147,13 +141,46 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             [widgets.Label('Scaling'), self.vector_scaling_list]
         )
 
+        self.new_field_point_x = widgets.FloatText(
+            value=0.0, layout={'width': '48px'},
+        )
+        new_field_point_x_grp = widgets.HBox(
+            [widgets.Label('x'), self.new_field_point_x],
+        )
+        self.new_field_point_y = widgets.FloatText(
+            value=0.0, layout={'width': '48px'},
+        )
+        new_field_point_y_grp = widgets.HBox(
+            [widgets.Label('y'), self.new_field_point_y],
+        )
+        self.new_field_point_z = widgets.FloatText(
+            value=0.0, layout={'width': '48px'},
+        )
+        new_field_point_z_grp = widgets.HBox(
+            [widgets.Label('z'), self.new_field_point_z],
+        )
+        new_field_point_coords_grp = widgets.HBox([
+            new_field_point_x_grp, new_field_point_y_grp , new_field_point_z_grp
+        ])
+        self.new_field_point_add = widgets.Button(
+            description='+', layout={'width': 'fit-content'},
+        )
+        self.new_field_point_add.on_click(self._add_field_point)
+
+        self.new_field_point_grp = widgets.HBox([
+            new_field_point_coords_grp, self.new_field_point_add
+        ])
+
+        # new plus existing
+        self.field_point_grp  = widgets.HBox([
+        ])
+
         self.vector_grp = widgets.HBox([
             self.field_type_list,
+            self.new_field_point_grp,
             field_map_grp,
             vector_scaling_grp
         ])
-
-
 
         self.solve_prec = widgets.BoundedFloatText(
             value=0.0001, min=1e-06, max=10.0, step=1e-06,
@@ -211,7 +238,21 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             self.solve_grp,
         ])
 
-    def _get_current_field_path(self):
+    def _add_field_point(self, b):
+        self.rsdbg('Adding point {} {} {}'.format(
+            self.new_field_point_x.value,
+            self.new_field_point_y.value,
+            self.new_field_point_z.value
+        ))
+        self.current_field_points.append(
+            [self.new_field_point_x.value,
+            self.new_field_point_y.value,
+            self.new_field_point_z.value
+            ]
+        )
+        self.display()
+
+    def _get_current_field_points(self):
         return [item for sublist in self.current_field_points for item in sublist]
 
     def _enable_controls(self, enabled):
@@ -220,6 +261,9 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 
     def _radia_displayed(self, o):
         self.geom_list.value = self.current_geom
+
+    def _remove_field_point(self, p_idx):
+        pass
 
     def _set_current_geom(self, d):
         g_name = d['new']
@@ -271,6 +315,8 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
         self.field_type_list.layout.display =\
             None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
+        self.new_field_point_grp.layout.display =\
+            None if self.field_type_list.value == FIELD_TYPE_MAG_B else 'none'
 
     def _update_viewer(self, d):
         self.display(self.current_geom)
