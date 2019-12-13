@@ -225,7 +225,8 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
             [bg_color_pick_grp,
              self.obj_color_pick_grp,
              self.poly_alpha_grp,
-             self.edge_toggle]
+             self.edge_toggle],
+            layout={'padding': '3px 0px 3px 0px'}
         )
 
         # links the values of two widgets
@@ -256,9 +257,13 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
         view_cam_grp = widgets.HBox(
             [self.reset_btn, axis_btn_grp, self.orientation_toggle],
-            layout=widgets.Layout(
-                padding='6px'
-            ))
+            layout={'padding': '3px 0px 3px 0px'}
+        )
+
+        controls_grp = widgets.VBox(
+            [view_cam_grp, view_props_grp],
+            layout={'padding': '8px 4px 8px 4px'}
+        )
 
         self.on_displayed(self._viewer_displayed)
 
@@ -272,6 +277,6 @@ class Viewer(widgets.VBox, rs_utils.RSDebugger):
 
         self.observe(self._set_client_props, names='client_props')
         super(Viewer, self).__init__(children=[
-            self.content, view_cam_grp, view_props_grp,
+            self.content, controls_grp,
         ])
 

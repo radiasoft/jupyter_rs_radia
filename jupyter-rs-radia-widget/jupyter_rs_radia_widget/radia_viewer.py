@@ -21,6 +21,13 @@ VIEW_TYPE_FIELD = 'Fields'
 VIEW_TYPES = [VIEW_TYPE_OBJ, VIEW_TYPE_FIELD]
 
 
+def _label_grp(widget, txt, layout={'padding': '0 6px 0 0'}):
+    return widgets.HBox(
+        [widgets.Label(txt), widget],
+        layout=layout
+    )
+
+
 @widgets.register
 class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     """Radia interface"""
@@ -31,6 +38,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 
+    _axes = ['x', 'y', 'z']
     _is_displayed = False
 
     current_geom = Unicode('').tag(sync=True)
@@ -91,7 +99,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self._set_title()
         self.send({'type': 'refresh'})
 
-
     def __init__(self, mgr=None):
         self.model_data = {}
         self.mgr = radia_tk.RadiaGeomMgr() if mgr is None else mgr
@@ -101,103 +108,98 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.view_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
             options=VIEW_TYPES,
-            description='View',
         )
         self.view_type_list.observe(self._update_viewer, names='value')
+        view_type_list_grp = _label_grp(self.view_type_list, 'View')
 
         self.field_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
             options=FIELD_TYPES,
-            description='Field',
         )
         self.field_type_list.observe(self._update_viewer, names='value')
+        field_type_list_grp = _label_grp(self.field_type_list, 'Field')
 
         self.geom_list = widgets.Dropdown(
             layout={'width': 'max-content'},
             options=[n for n in self.mgr.get_geoms()]
         )
         self.geom_list.observe(self._set_current_geom, names='value')
-        geom_list_grp = widgets.HBox(
-            [widgets.Label('Geometry'), self.geom_list],
-        )
+        geom_list_grp = _label_grp(self.geom_list, 'Geometry')
 
-        # to be populated by the client or a shared resource
+        # TODO(mvk): from schema
         self.field_color_map_list = widgets.Dropdown(
             layout={'width': 'max-content'},
         )
 
         # the options/value of a dropdown are not syncable!  We'll work around it
         self.field_color_map_list.observe(self._set_field_color_map, names='value')
-
-        field_map_grp = widgets.HBox(
-            [widgets.Label('Color Map'), self.field_color_map_list],
-        )
+        field_map_grp = _label_grp(self.field_color_map_list, 'Color Map')
+        field_map_grp.layout = widgets.Layout(padding='0 6px 0 0')
 
         self.vector_scaling_list = widgets.Dropdown(
             layout={'width': 'max-content'},
         )
         self.vector_scaling_list.observe(self._set_vector_scaling, names='value')
-        vector_scaling_grp = widgets.HBox(
-            [widgets.Label('Scaling'), self.vector_scaling_list]
+        vector_scaling_grp = _label_grp(self.vector_scaling_list, 'Scaling')
+
+        self.new_field_pt_flds = PKDict()
+        for axis in RadiaViewer._axes:
+            self.new_field_pt_flds[axis] = widgets.FloatText(
+                    value=0.0, layout={'width': '48px'},
+                )
+
+        new_field_point_coords_grp = widgets.HBox(
+            [_label_grp(self.new_field_pt_flds[axis], axis) for
+             axis in self.new_field_pt_flds]
         )
 
-        self.new_field_point_x = widgets.FloatText(
-            value=0.0, layout={'width': '48px'},
-        )
-        new_field_point_x_grp = widgets.HBox(
-            [widgets.Label('x'), self.new_field_point_x],
-        )
-        self.new_field_point_y = widgets.FloatText(
-            value=0.0, layout={'width': '48px'},
-        )
-        new_field_point_y_grp = widgets.HBox(
-            [widgets.Label('y'), self.new_field_point_y],
-        )
-        self.new_field_point_z = widgets.FloatText(
-            value=0.0, layout={'width': '48px'},
-        )
-        new_field_point_z_grp = widgets.HBox(
-            [widgets.Label('z'), self.new_field_point_z],
-        )
-        new_field_point_coords_grp = widgets.HBox([
-            new_field_point_x_grp, new_field_point_y_grp , new_field_point_z_grp
-        ])
-        self.new_field_point_add = widgets.Button(
+        self.new_field_point_btn = widgets.Button(
             description='+', layout={'width': 'fit-content'},
         )
-        self.new_field_point_add.on_click(self._add_field_point)
+        self.new_field_point_btn.on_click(self._add_field_point)
 
         self.new_field_point_grp = widgets.HBox([
-            new_field_point_coords_grp, self.new_field_point_add
-        ])
+            new_field_point_coords_grp, self.new_field_point_btn
+        ], layout={'padding': '0 6px 0 0'})
 
         # new plus existing
         self.field_point_grp  = widgets.HBox([
         ])
 
         self.vector_grp = widgets.HBox([
-            self.field_type_list,
+            field_type_list_grp,
             self.new_field_point_grp,
             field_map_grp,
             vector_scaling_grp
         ])
 
+        geom_grp = widgets.HBox([
+            geom_list_grp,
+            view_type_list_grp,
+            self.vector_grp
+        ], layout={'padding': '3px 0px 3px 0px'})
+
         self.solve_prec = widgets.BoundedFloatText(
             value=0.0001, min=1e-06, max=10.0, step=1e-06,
-            description='Precision (T)')
+            layout={'width': '72px'},
+        )
+        solve_prec_grp = _label_grp(
+            self.solve_prec,
+            'Precision (' + radia_tk.RadiaGeomMgr.m_field_units + ')'
+        )
+
         self.solve_max_iter = widgets.BoundedIntText(
-            value=1500, min=1, max=1e6, step=100
+            value=1500, min=1, max=1e6, step=100,
+            layout={'width': '72px'},
         )
-        solve_max_iter_grp = widgets.HBox(
-            [widgets.Label('Max Iterations'), self.solve_max_iter]
-        )
+        solve_max_iter_grp = _label_grp(self.solve_max_iter, 'Max Iterations')
 
         self.solve_method = widgets.Dropdown(
             layout={'width': 'max-content'},
-            description='Method',
             value=0,
             options=[('0', 0), ('3', 3), ('4', 4), ('5', 5)]
         )
+        solve_method_grp = _label_grp(self.solve_method, 'Method', layout={})
         self.solve_btn = widgets.Button(description='Solve',
                                         layout={'width': 'fit-content'},
                                         )
@@ -205,23 +207,18 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 
         self.solve_res_label = widgets.Label()
 
-        self.solve_grp = widgets.HBox([
-            self.solve_prec,
+        solve_grp = widgets.HBox([
+            solve_prec_grp,
             solve_max_iter_grp,
-            self.solve_method,
+            solve_method_grp,
             self.solve_btn,
             self.solve_res_label
-        ])
-
-        self.geom_grp = widgets.HBox([
-            geom_list_grp,
-            self.view_type_list,
-            self.vector_grp
-        ])
+        ], layout={'padding': '3px 0px 3px 0px'})
 
         # for enabling/disabling as a whole
         self.controls = [
             self.field_color_map_list,
+            self.new_field_point_btn,
             self.field_type_list,
             self.solve_btn,
             self.solve_method,
@@ -231,33 +228,33 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             self.view_type_list,
         ]
 
+        controls_grp = widgets.VBox(
+            [geom_grp, solve_grp],
+            layout={'padding': '8px 4px 4px 4px'}
+        )
+
         self.observe(self._set_client_props, names='client_props')
         super(RadiaViewer, self).__init__(children=[
             self.vtk_viewer,
-            self.geom_grp,
-            self.solve_grp,
+            geom_grp,
+            solve_grp,
         ])
 
     def _add_field_point(self, b):
-        self.rsdbg('Adding point {} {} {}'.format(
-            self.new_field_point_x.value,
-            self.new_field_point_y.value,
-            self.new_field_point_z.value
-        ))
-        self.current_field_points.append(
-            [self.new_field_point_x.value,
-            self.new_field_point_y.value,
-            self.new_field_point_z.value
-            ]
-        )
+        new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
+        if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
+                for p in self.current_field_points]):
+            self.rsdbg('Point {} exists'.format(new_pt))
+            return
+        self.current_field_points.append(new_pt)
         self.display()
-
-    def _get_current_field_points(self):
-        return [item for sublist in self.current_field_points for item in sublist]
 
     def _enable_controls(self, enabled):
         for c in self.controls:
             c.disabled = not enabled
+
+    def _get_current_field_points(self):
+        return [item for sublist in self.current_field_points for item in sublist]
 
     def _radia_displayed(self, o):
         self.geom_list.value = self.current_geom

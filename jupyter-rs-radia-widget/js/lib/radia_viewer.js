@@ -120,7 +120,7 @@ const RadiaViewerView = controls.VBoxView.extend({
 
         if (this.schema.num_field_cmap_ticks >= 2) {
             this.fieldColorMapScale = d3Scale.scaleLinear()
-                .domain(vectors.range)
+                .domain(vectors.range).nice()
                 .range([0, this.select('.vector-field-color-map-axis').width()]);
             this.fieldColorMapAxis.scale(this.fieldColorMapScale);
             this.select('.vector-field-color-map-axis > svg > g', 'd3').call(this.fieldColorMapAxis);
