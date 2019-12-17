@@ -97,7 +97,7 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     refresh: function() {
-        rsUtils.rsdbg('radia refresh');
+        //rsUtils.rsdbg('radia refresh');
         this.select('.vector-field-color-map-content').css(
             'display', 'none');
         let vectors = this.getVectors();
@@ -132,7 +132,7 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     render: function() {
-        rsUtils.rsdbg('radia render');
+        //rsUtils.rsdbg('radia render');
         // this is effectively "super.render()"
         controls.VBoxView.prototype.render.apply((this));
 
