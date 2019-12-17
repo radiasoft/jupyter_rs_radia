@@ -1,0 +1,2 @@
+graft jupyter_rs_radia/static
+include jupyter-rs-radia.json

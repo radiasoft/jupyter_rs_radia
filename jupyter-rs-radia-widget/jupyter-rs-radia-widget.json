@@ -1,5 +1,0 @@
-{
-  "load_extensions": {
-    "jupyter-rs-radia-widget/extension": true
-  }
-}

@@ -1,0 +1,50 @@
+{
+  "name": "jupyter-rs-radia",
+  "version": "0.0.1",
+  "description": "Radia widget for Jupyter",
+  "author": "RadiaSoft LLC",
+  "license": "Apache-2.0",
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/radiasoft/rsjpyradia/jupyter-rs-radia.git"
+  },
+  "keywords": [
+    "ipython",
+    "ipywidgets",
+    "jupyter",
+    "jupyterlab-extension",
+    "radia",
+    "vtk",
+    "widgets"
+  ],
+  "files": [
+    "lib/**/*.js",
+    "dist/*.js"
+  ],
+  "scripts": {
+    "clean": "rimraf dist/",
+    "prepublish": "webpack",
+    "build": "webpack",
+    "watch": "webpack --watch --mode=development",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "webpack": "^3.5.5",
+    "rimraf": "^2.6.1"
+  },
+  "dependencies": {
+    "@jupyter-widgets/base": "^1.1 || ^2",
+    "@jupyter-widgets/controls": "^1.5.2",
+    "d3": "^5.14.2",
+    "d3-scale": "^3.2.1",
+    "jquery": "^3.4.1",
+    "lodash": "^4.17.4",
+    "os-locale": "^4.0.0",
+    "uglify-js": "^3.6.7",
+    "yargs": "^14.2.0"
+  },
+  "jupyterlab": {
+    "extension": "lib/labplugin"
+  }
+}

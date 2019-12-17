@@ -1,5 +1,0 @@
-{
-  "load_extensions": {
-    "jupyter-rs-vtk-widget/extension": true
-  }
-}
