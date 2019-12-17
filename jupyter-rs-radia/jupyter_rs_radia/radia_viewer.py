@@ -62,7 +62,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     vector_scaling_types = List(default_value=list()).tag(sync=True)
     vtk_viewer = None
 
-    def add_geom(self, geom_name, geom):
+    def add_geometry(self, geom_name, geom):
         self.mgr.add_geom(geom_name, geom)
         self.geom_list.options = [n for n in self.mgr.get_geoms()]
 
