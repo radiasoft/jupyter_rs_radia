@@ -9,6 +9,25 @@ from numpy import linalg
 from pykern.pkcollections import PKDict
 from pykern.pkdebug import pkdp
 
+FIELD_TYPE_MAG_A = 'A'
+FIELD_TYPE_MAG_B = 'B'
+FIELD_TYPE_MAG_H = 'H'
+FIELD_TYPE_MAG_J = 'J'
+FIELD_TYPE_MAG_M = 'M'
+FIELD_TYPES = [FIELD_TYPE_MAG_M]
+POINT_FIELD_TYPES = [
+    FIELD_TYPE_MAG_B, FIELD_TYPE_MAG_A, FIELD_TYPE_MAG_H, FIELD_TYPE_MAG_J
+]
+FIELD_TYPES.extend(POINT_FIELD_TYPES)
+
+FIELD_UNITS = PKDict({
+    FIELD_TYPE_MAG_A: 'T m',
+    FIELD_TYPE_MAG_B: 'T',
+    FIELD_TYPE_MAG_H: 'A/m',
+    FIELD_TYPE_MAG_J: 'A/m^2',
+    FIELD_TYPE_MAG_M: 'A/m',
+})
+
 
 class RadiaGeomMgr(rs_utils.RSDebugger):
     """Manager for multiple geometries (Radia objects)"""
@@ -28,25 +47,37 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
     def add_geom(self, name, geom):
         self._geoms[name] = PKDict(g=geom, solved=False)
 
+    def curr_field_to_data(self, name, path):
+        return self.field_to_data(name, 'a', path)
+
     def is_geom_solved(self, name):
         return self.get_geom(name).solved
 
     # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
     def mag_field_to_data(self, name, path):
-        pv_arr = []
-        p = numpy.reshape(path, (-1, 3)).tolist()
-        b = []
-        # get every component
-        f = radia.Fld(self.get_geom(name), 'b', path)
-        b.extend(f)
-        b = numpy.reshape(b, (-1, 3)).tolist()
-        for p_idx, pt in enumerate(p):
-            pv_arr.append([pt, b[p_idx]])
-        return self.vector_field_to_data(name, pv_arr, self.b_field_units)
+        return self.field_to_data(name, 'b', path)
 
     def magnetization_to_data(self, name):
         return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)),
                                          self.m_field_units)
+
+    # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
+    def field_to_data(self, name, type, path):
+        pv_arr = []
+        p = numpy.reshape(path, (-1, 3)).tolist()
+        b = []
+        # get every component
+        f = radia.Fld(self.get_geom(name), type, path)
+        b.extend(f)
+        b = numpy.reshape(b, (-1, 3)).tolist()
+        for p_idx, pt in enumerate(p):
+            pv_arr.append([pt, b[p_idx]])
+        #return self.vector_field_to_data(name, pv_arr, self.b_field_units)
+        return self.vector_field_to_data(
+            name,
+            pv_arr,
+            FIELD_UNITS[type] if type in FIELD_UNITS else ''
+        )
 
     # define send to satisfy RSDebugger - get web socket somehow instead?
     def send(self, msg):

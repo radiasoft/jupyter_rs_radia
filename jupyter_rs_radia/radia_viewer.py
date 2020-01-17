@@ -12,10 +12,6 @@ from pykern.pkdebug import pkdp, pkdlog
 from jupyter_rs_vtk import rs_utils
 from traitlets import Any, Dict, Instance, List, Unicode
 
-FIELD_TYPE_MAG_M = 'M'
-FIELD_TYPE_MAG_B = 'B'
-FIELD_TYPES = [FIELD_TYPE_MAG_M, FIELD_TYPE_MAG_B]
-
 VIEW_TYPE_OBJ = 'Objects'
 VIEW_TYPE_FIELD = 'Fields'
 VIEW_TYPES = [VIEW_TYPE_OBJ, VIEW_TYPE_FIELD]
@@ -78,22 +74,29 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         #self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
         if v_type not in VIEW_TYPES:
             raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
-        if f_type not in FIELD_TYPES:
-            raise ValueError('Invalid field {} ({})'.format(f_type, FIELD_TYPES))
+        if f_type not in radia_tk.FIELD_TYPES:
+            raise ValueError('Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES))
         if v_type == VIEW_TYPE_OBJ:
             self.model_data = self.mgr.geom_to_data(g_name)
         elif v_type == VIEW_TYPE_FIELD:
-            if f_type == FIELD_TYPE_MAG_M:
+            if f_type == radia_tk.FIELD_TYPE_MAG_M:
                 self.model_data = self.mgr.magnetization_to_data(g_name)
-            elif f_type == FIELD_TYPE_MAG_B:
-                self.model_data = self.mgr.mag_field_to_data(
+            elif f_type in radia_tk.POINT_FIELD_TYPES:
+                self.model_data = self.mgr.field_to_data(
                     g_name,
+                    f_type,
                     self._get_current_field_points()
                 )
         #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
         self.refresh()
         return self
+
+    # print help
+    def help(self):
+        # print('HELP!')
+        pass
+
 
     def refresh(self):
         self._set_title()
@@ -114,7 +117,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
 
         self.field_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
-            options=FIELD_TYPES,
+            options=radia_tk.FIELD_TYPES,
         )
         self.field_type_list.observe(self._update_viewer, names='value')
         field_type_list_grp = _label_grp(self.field_type_list, 'Field')
@@ -313,7 +316,8 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.field_type_list.layout.display =\
             None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
         self.new_field_point_grp.layout.display =\
-            None if self.field_type_list.value == FIELD_TYPE_MAG_B else 'none'
+            None if self.field_type_list.value in radia_tk.POINT_FIELD_TYPES \
+                else 'none'
 
     def _update_viewer(self, d):
         self.display(self.current_geom)
