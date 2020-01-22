@@ -2,21 +2,32 @@ from __future__ import absolute_import, division, print_function
 
 import datetime
 import ipywidgets as widgets
+import json
 import radia
 
+from importlib import resources
 from jupyter_rs_radia import radia_tk
+from jupyter_rs_radia import json as rsjson
 from jupyter_rs_vtk import gui_utils
 from jupyter_rs_vtk import vtk_viewer
+from pykern import pkresource
 from pykern.pkcollections import PKDict
 from pykern.pkdebug import pkdp, pkdlog
 from jupyter_rs_vtk import rs_utils
 from traitlets import Any, Dict, Instance, List, Unicode
+
+PATH_TYPE_CIRCLE = 'Circle'
+PATH_TYPE_FILE = 'File'
+PATH_TYPE_LINE = 'Line'
+PATH_TYPE_MANUAL = 'Manual'
+PATH_TYPES = [PATH_TYPE_LINE, PATH_TYPE_CIRCLE, PATH_TYPE_MANUAL, PATH_TYPE_FILE]
 
 VIEW_TYPE_OBJ = 'Objects'
 VIEW_TYPE_FIELD = 'Fields'
 VIEW_TYPES = [VIEW_TYPE_OBJ, VIEW_TYPE_FIELD]
 
 
+#TODO(mvk): move to common widget toolbox
 def _label_grp(widget, txt, layout={'padding': '0 6px 0 0'}):
     return widgets.HBox(
         [widgets.Label(txt), widget],
@@ -71,7 +82,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.current_geom = g_name
         v_type = self.view_type_list.value if v_type is None else v_type
         f_type = self.field_type_list.value if f_type is None else f_type
-        #self.rsdbg('Display g {} view {} field {}'.format(g_name, v_type, f_type))
         if v_type not in VIEW_TYPES:
             raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
         if f_type not in radia_tk.FIELD_TYPES:
@@ -87,7 +97,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
                     f_type,
                     self._get_current_field_points()
                 )
-        #self.rsdbg('setting vtk data {} for {}'.format(self.model_data, self.current_geom))
         self.vtk_viewer.set_data(self.model_data)
         self.refresh()
         return self
@@ -96,7 +105,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
     def help(self):
         # print('HELP!')
         pass
-
 
     def refresh(self):
         self._set_title()
@@ -107,6 +115,11 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.mgr = radia_tk.RadiaGeomMgr() if mgr is None else mgr
         self.on_displayed(self._radia_displayed)
         self.vtk_viewer = vtk_viewer.Viewer()
+
+        #TODO(mvk): build view from this schema
+        self.schema = PKDict(json.JSONDecoder().decode(
+            resources.read_text(rsjson, 'schema.json')
+        ))
 
         self.view_type_list = widgets.Dropdown(
             layout={'width': 'max-content'},
@@ -122,6 +135,13 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.field_type_list.observe(self._update_viewer, names='value')
         field_type_list_grp = _label_grp(self.field_type_list, 'Field')
 
+        self.path_type_list = widgets.Dropdown(
+            layout={'width': 'max-content'},
+            options=PATH_TYPES,
+        )
+        self.path_type_list.observe(self._update_viewer, names='value')
+        path_type_list_grp = _label_grp(self.path_type_list, 'Path')
+
         self.geom_list = widgets.Dropdown(
             layout={'width': 'max-content'},
             options=[n for n in self.mgr.get_geoms()]
@@ -129,7 +149,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.geom_list.observe(self._set_current_geom, names='value')
         geom_list_grp = _label_grp(self.geom_list, 'Geometry')
 
-        # TODO(mvk): from schema
         self.field_color_map_list = widgets.Dropdown(
             layout={'width': 'max-content'},
         )
@@ -223,6 +242,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             self.field_color_map_list,
             self.new_field_point_btn,
             self.field_type_list,
+            self.path_type_list,
             self.solve_btn,
             self.solve_method,
             self.solve_max_iter,
@@ -260,6 +280,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         return [item for sublist in self.current_field_points for item in sublist]
 
     def _radia_displayed(self, o):
+        #self.rsdbg('sch {}'.format(self.schema))
         self.geom_list.value = self.current_geom
 
     def _remove_field_point(self, p_idx):
@@ -289,9 +310,6 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
         self.vector_scaling = d['new']
 
     def _solve(self, b):
-        #self.rsdbg('solve prec {} iter {} meth {}'.format(
-        #    self.solve_prec.value, self.solve_max_iter.value, self.solve_method.value
-        #))
         self._enable_controls(False)
         self.solve_res_label.value = ''
         start = datetime.datetime.now()
@@ -317,7 +335,7 @@ class RadiaViewer(widgets.VBox, rs_utils.RSDebugger):
             None if self.view_type_list.value == VIEW_TYPE_FIELD else 'none'
         self.new_field_point_grp.layout.display =\
             None if self.field_type_list.value in radia_tk.POINT_FIELD_TYPES \
-                else 'none'
+            else 'none'
 
     def _update_viewer(self, d):
         self.display(self.current_geom)

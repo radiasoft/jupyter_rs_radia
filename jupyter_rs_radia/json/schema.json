@@ -1,0 +1,183 @@
+{
+    "view": {
+        "view_type_list": {
+            "layout": {"width": "max-content"},
+            "name": "View Types",
+            "type": "dropdown"
+        },
+        "view_type_list_grp": {
+            "children": ["view_type_list"],
+            "name": "View",
+            "type": "labelGroup"
+        },
+        "field_type_list": {
+            "layout": {"width": "max-content"},
+            "name": "Field Types",
+            "type": "dropdown"
+        },
+        "field_type_list_grp": {
+            "children": ["field_type_list"],
+            "name": "Field",
+            "type": "labelGroup"
+        },
+        "path_type_list": {
+            "layout": {"width": "max-content"},
+            "name": "Path Types",
+            "type": "dropdown"
+        },
+        "path_type_list_grp": {
+            "children": ["path_type_list"],
+            "name": "Path",
+            "type": "labelGroup"
+        },
+        "geom_list": {
+            "layout": {"width": "max-content"},
+            "name": "Geometries",
+            "type": "dropdown"
+        },
+        "geom_list_grp": {
+            "children": ["geom_list"],
+            "name": "Geometry",
+            "type": "labelGroup"
+        },
+        "field_color_map_list": {
+            "layout": {"width": "max-content"},
+            "name": "Color Maps",
+            "type": "dropdown"
+        },
+        "field_map_grp": {
+            "children": ["field_color_map_list"],
+            "layout": {"padding": "0 6px 0 0"},
+            "name": "Color Map",
+            "type": "labelGroup"
+        },
+        "vector_scaling_list": {
+            "layout": {"width": "max-content"},
+            "name": "Scaling Options",
+            "type": "dropdown"
+        },
+        "vector_scaling_grp": {
+            "children": ["vector_scaling_list"],
+            "name": "Scaling",
+            "type": "labelGroup"
+        },
+        "new_field_pt_flds": [
+            {
+                "layout": {"width": "48px"},
+                "name": "X",
+                "type": "floatText",
+                "value": 0.0
+            },
+            {
+                "layout": {"width": "48px"},
+                "name": "Y",
+                "type": "floatText",
+                "value": 0.0
+            },
+            {
+                "layout": {"width": "48px"},
+                "name": "Z",
+                "type": "floatText",
+                "value": 0.0
+            }
+        ],
+        "new_field_pt_fld_grps": [
+            {
+                "children": ["new_field_pt_flds.0"],
+                "name": "X",
+                "type": "labelGroup"
+            },
+            {
+                "children": ["new_field_pt_flds.1"],
+                "name": "Y",
+                "type": "labelGroup"
+            },
+            {
+                "children": ["new_field_pt_flds.2"],
+                "name": "Z",
+                "type": "labelGroup"
+            }
+        ],
+        "new_field_point_coords_grp": {
+            "children": "new_field_pt_flds",
+            "type": "hbox"
+        },
+        "new_field_point_btn": {
+            "layout": {"width": "fit-content"},
+            "name": "+",
+            "type": "button"
+        },
+        "new_field_point_grp": {
+            "children": ["new_field_point_coords_grp", "new_field_point_btn"],
+            "layout": {"padding": "0 6px 0 0"},
+            "type": "hbox"
+        },
+        "vector_grp": {
+            "children": ["field_type_list_grp", "new_field_point_grp", "field_map_grp", "vector_scaling_grp"],
+            "type": "hbox"
+        },
+        "geom_grp": {
+            "children": ["geom_list_grp", "view_type_list_grp", "vector_grp"],
+            "layout": {"padding": "3px 0px 3px 0px"},
+            "type": "hbox"
+        },
+        "solve_prec": {
+            "layout": {"width": "72px"},
+            "type": "boundedFloatText",
+            "min": 1e-06,
+            "max": 10.0,
+            "step": 1e-06,
+            "value": 0.0001
+        },
+        "solve_prec_grp": {
+            "children": ["solve_prec"],
+            "name": "Precision()",
+            "type": "labelGroup"
+        },
+        "solve_max_iter": {
+            "layout": {"width": "72px"},
+            "max": 1e6,
+            "min": 1,
+            "step": 100,
+            "type": "boundedIntText",
+            "value": 1500
+        },
+        "solve_max_iter_grp": {
+            "children": ["solve_max_iter"],
+            "name": "Max Iterations",
+            "type": "labelGroup"
+        },
+        "solve_method": {
+            "children": ["solve_max_iter_grp"],
+            "layout": {"width": "max-content"},
+            "name": "Methods",
+            "options": [{"0": 0}, {"3": 3}, {"4": 4}, {"5": 5}],
+            "type": "dropdown",
+            "value": 0
+        },
+        "solve_method_grp": {
+            "children": ["solve_method"],
+            "name": "Method",
+            "type": "labelGroup"
+        },
+        "solve_btn": {
+            "layout": {"width": "fit-content"},
+            "name": "Solve",
+            "type": "button"
+        },
+        "solve_res_label": {
+            "type": "label",
+            "value": ""
+        },
+        "solve_grp": {
+            "children": ["solve_prec_grp", "solve_max_iter_grp", "solve_method_grp", "solve_btn", "solve_res_label"],
+            "layout": {"padding": "3px 0px 3px 0px"},
+            "type": "hbox"
+        },
+        "controls_grp":  {
+            "children": ["geom_grp", "solve_grp"],
+            "layout": {"padding": "8px 4px 4px 4px"},
+            "type": "hbox"
+        }
+    }
+}
