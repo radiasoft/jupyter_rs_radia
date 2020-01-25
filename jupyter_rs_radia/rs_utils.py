@@ -12,6 +12,8 @@ def to_pkdict(d):
             pkd[k] = to_pkdict(v)
         except TypeError:
             pass
+        except ValueError:
+            pkd[k] = v
     return pkd
 
 

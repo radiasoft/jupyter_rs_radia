@@ -10,6 +10,7 @@ let widgets = require('@jupyter-widgets/base');
 const template = [
     '<div class="radia-viewer">',
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
+        '<input class="radia-file-input" type="file" style="visibility:hidden" />',
         '<div class="selection-info">',
           '<span class="selection-info-value" style="padding-left: 4px;"></span>',
         '</div>',
@@ -23,6 +24,52 @@ const template = [
         '</div>',
     '</div>',
 ].join('');
+
+const fileTemplate = [
+    '<div class="radia-file">',
+        '<input type="file" class="radia-file-input">',
+    '</div>',
+].join('');
+
+const RadiaFileModel = widgets.DOMWidgetModel.extend({
+    defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
+        _model_name: 'RadiaFileModel',
+        _view_name: 'RadiaFileView',
+        _model_module: 'jupyter-rs-radia',
+        _view_module: 'jupyter-rs-radia',
+        _model_module_version: '0.0.1',
+        _view_module_version: '0.0.1',
+    }),
+}, {});
+
+const RadiaFileView = widgets.DOMWidgetView.extend({
+
+    handleCustomMessages: function(msg) {
+        if (msg.type === 'debug') {
+            rsUtils.rsdbg(msg.msg);
+        }
+    },
+
+    render: function() {
+        const view = this;
+        $(this.el).append($(fileTemplate));
+        $(this.el).find('.radia-file-input')
+            .on('change', function (e) {
+                const f = e.target.files[0];
+                //rsUtils.rsdbg('RadiaFileView LOAD file', f, 'view', view);
+                const fr = new FileReader();
+                fr.onload = function() {
+                    const d = fr.result;
+                    rsUtils.rsdbg('RadiaFileView LOADED', f.name, d);
+                    view.model.set('file_data', d);
+                    rsUtils.rsdbg('model mow', view.model.get('file_data'));
+                };
+                fr.readAsText(f);
+            });
+        this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
+    },
+
+});
 
 const RadiaViewerModel = controls.VBoxModel.extend({
     defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
@@ -76,6 +123,11 @@ const RadiaViewerView = controls.VBoxView.extend({
 
         if (msg.type === 'refresh') {
             this.refresh();
+        }
+
+        if (msg.type === 'upload') {
+            rsUtils.rsdbg('UPLOAD MSG');
+            this.upload();
         }
     },
 
@@ -150,6 +202,19 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.setTitle();
             view.vtkViewer.processPickedObject = view.processSelectedObject(view);
             view.vtkViewer.processPickedVector = view.processSelectedVector(view);
+
+            $(view.el).find('.radia-file-input')
+                .on('change', function (e) {
+                    const f = e.target.files[0];
+                    const fr = new FileReader();
+                    fr.onload = function() {
+                        const d = fr.result;
+                        rsUtils.rsdbg('RadiaFileView LOADED', f.name, d);
+                        view.model.set('file_data', d);
+                        rsUtils.rsdbg('model now', view.model.get('file_data'));
+                    };
+                    fr.readAsText(f);
+                });
         });
 
         this.model.on('change:field_color_map_name', this.setFieldColorMap, this);
@@ -242,9 +307,16 @@ const RadiaViewerView = controls.VBoxView.extend({
         this.select('.radia-viewer-title').text(this.model.get('title'));
     },
 
+    upload: function () {
+        rsUtils.rsdbg('UPLOAD');
+        $(this.el).find('.radia-file-input').trigger('click');
+    }
+
 });
 
 module.exports = {
+    RadiaFileModel: RadiaFileModel,
+    RadiaFileView: RadiaFileView,
     RadiaViewerModel: RadiaViewerModel,
     RadiaViewerView: RadiaViewerView
 };
