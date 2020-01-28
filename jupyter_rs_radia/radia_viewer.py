@@ -222,8 +222,11 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             layout={'width': 'fit-content'}
         )
         self.pt_file_btn.on_click(self._upload)
+        self.pt_file_label = ipywidgets.Label('<None>')
+        self.pt_file_label.add_class('rs-file-input-label')
+        self.observe(self._data_loaded, names='file_data')
         self.pt_file_grp = ipywidgets.HBox([
-            self.pt_file_btn, self.new_field_point_btn
+            self.pt_file_btn, self.pt_file_label, self.new_field_point_btn
         ], layout={'padding': '0 6px 0 0'})
 
         self.geom_list = ipywidgets.Dropdown(
@@ -269,14 +272,11 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             self.circle_grp,
             self.new_field_point_grp,
             self.pt_file_grp,
-            #field_map_grp,
-            #vector_scaling_grp
         ])
 
         geom_grp = ipywidgets.HBox([
             geom_list_grp,
             view_type_list_grp,
-            #self.vector_grp
             self.vector_props_grp
         ], layout={'padding': '3px 0px 3px 0px'})
 
@@ -301,9 +301,10 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             options=[('0', 0), ('3', 3), ('4', 4), ('5', 5)]
         )
         solve_method_grp = _label_grp(self.solve_method, 'Method', layout={})
-        self.solve_btn = ipywidgets.Button(description='Solve',
-                                        layout={'width': 'fit-content'},
-                                        )
+        self.solve_btn = ipywidgets.Button(
+            description='Solve',
+            layout={'width': 'fit-content'},
+        )
         self.solve_btn.on_click(self._solve)
 
         self.solve_res_label = ipywidgets.Label()
@@ -340,7 +341,6 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             self.vtk_viewer,
             geom_grp,
             self.vector_grp,
-            #self.vector_props_grp,
             solve_grp,
         ])
 
@@ -350,39 +350,34 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.current_field_points = self.file_data
         self.display()
 
-
     def _add_field_point(self, b):
         new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
         if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
                 for p in self.current_field_points]):
             self.rsdbg('Point {} exists'.format(new_pt))
             return
-        #self.current_field_points.append(new_pt)
         self.current_field_points.extend(new_pt)
         self.display()
 
     def _add_field_line(self, b):
         p1 = [self.line_begin_pt_flds[f].value for f in self.line_begin_pt_flds]
         p2 = [self.line_end_pt_flds[f].value for f in self.line_end_pt_flds]
-        self.rsdbg('adding line {} -> {} ({})'.format(p1, p2, self.path_num_pts.value))
-        #self.current_field_points.append(p1)
+        #self.rsdbg('adding line {} -> {} ({})'.format(p1, p2, self.path_num_pts.value))
         self.current_field_points.extend(p1)
         n = self.path_num_pts.value - 1
         for i in range(1, n):
-            #self.current_field_points.append(
             self.current_field_points.extend(
                 [p1[j] + i * (p2[j] - p1[j]) / n for j in range(len(p1))]
             )
-        #self.current_field_points.append(p2)
         self.current_field_points.extend(p2)
         self.display()
 
     def _add_field_circle(self, b):
         ctr = [self.circle_ctr_flds[f].value for f in self.circle_ctr_flds]
-        r = self.circle_radius.value
-        # theta is the direction of the normal - use euler angles?
-        th = self.circle_theta.value
-        self.rsdbg('adding circle at {} rad {} th {} ({})'.format(ctr, r, th, self.path_num_pts.value))
+        r = float(self.circle_radius.value)
+        # theta is a rotation about the x-axis - use euler angles?
+        th = float(self.circle_theta.value)
+        #self.rsdbg('adding circle at {} rad {} th {} ({})'.format(ctr, r, th, self.path_num_pts.value))
         n = self.path_num_pts.value
         dphi = 2. * math.pi / n
         for i in range(0, n):
@@ -400,16 +395,23 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
                 ctr[1] + aa[1],
                 ctr[2] + aa[2],
             ]
-            #self.rsdbg('adding {}'.format(a))
-            #self.current_field_points.append(
             self.current_field_points.extend(
                 [aaa[j] for j in range(len(aaa))]
             )
         self.display()
 
-    def _enable_controls(self, enabled):
+    def _data_loaded(self, d):
+        # other stuff?
+        #self.rsdbg('DATA LOADED {}'.format(d['new']))
+        self._enable_controls()
+
+    def _disable_controls(self):
         for c in self.controls:
-            c.disabled = not enabled
+            c.disabled = True
+
+    def _enable_controls(self):
+        for c in self.controls:
+            c.disabled = False
 
     def _get_current_field_points(self):
         try:
@@ -449,7 +451,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.vector_scaling = d['new']
 
     def _solve(self, b):
-        self._enable_controls(False)
+        self._disable_controls()
         self.solve_res_label.value = ''
         start = datetime.datetime.now()
         res = radia.Solve(
@@ -460,7 +462,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         stop = datetime.datetime.now()
         self.display()
-        self._enable_controls(True)
+        self._enable_controls()
         d = stop - start
         self.solve_res_label.value = '{} ({}.{:06}s)'.format(
             'Done', d.seconds, d.microseconds
@@ -510,5 +512,6 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
     def _upload(self, b):
         self.current_field_points.clear()
+        #self._disable_controls()
         self.send({'type': 'upload'})
 

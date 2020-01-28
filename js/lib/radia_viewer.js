@@ -156,6 +156,7 @@ const RadiaViewerView = controls.VBoxView.extend({
             view.vtkViewer.processPickedObject = view.processSelectedObject(view);
             view.vtkViewer.processPickedVector = view.processSelectedVector(view);
 
+            // this is a hidden element
             $(view.el).find('.radia-file-input')
                 .on('change', function (e) {
                     const f = e.target.files[0];
@@ -164,6 +165,7 @@ const RadiaViewerView = controls.VBoxView.extend({
                         const d = fr.result.split(/,\s*/).map(function (x) {
                             return parseFloat(x);
                         });
+                        $(view.el).find('.widget-label.rs-file-input-label').text(f.name);
                         view.model.set('file_data', d);
                         view.touch();
                     };
