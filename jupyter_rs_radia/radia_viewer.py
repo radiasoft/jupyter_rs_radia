@@ -52,34 +52,6 @@ def _label_grp(widget, txt, layout={'padding': '0 6px 0 0'}):
 
 
 @ipywidgets.register
-class RadiaFile(ipywidgets.DOMWidget, rs_utils.RSDebugger):
-    """Radia file load button"""
-    _view_name = Unicode('RadiaFileView').tag(sync=True)
-    _model_name = Unicode('RadiaFileModel').tag(sync=True)
-    _view_module = Unicode('jupyter-rs-radia').tag(sync=True)
-    _model_module = Unicode('jupyter-rs-radia').tag(sync=True)
-    _view_module_version = Unicode('^0.0.1').tag(sync=True)
-    _model_module_version = Unicode('^0.0.1').tag(sync=True)
-
-    file_data = Unicode('').tag(sync=True)
-
-    def set_fd(self, msg):
-        self.rsdbg('RadiaFile fd {} {}'.format(msg, self.file_data))
-
-    def obs(self, d):
-        self.rsdbg('RadiaFile obs {} {}'.format(d, self.file_data))
-
-    def __init__(self, description='', layout={'width': 'fit-content'}):
-        self.rsdbg('RadiaFile init')
-        self.on_displayed(self._rf_displayed)
-        self.observe(self.obs, names='file_data', type='all')
-        super(RadiaFile, self).__init__(description=description, layout=layout)
-
-    def _rf_displayed(self, o):
-        self.rsdbg('RadiaFile displayed {}'.format(o))
-
-
-@ipywidgets.register
 class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     """Radia interface"""
     _view_name = Unicode('RadiaViewerView').tag(sync=True)
@@ -95,7 +67,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     current_field_points = []
 
     field_color_map_name = Unicode('').tag(sync=True)
-    file_data = Unicode('').tag(sync=True)
+
+    #file_data = Unicode(default_value='').tag(sync=True)
+    file_data = List(default_value=()).tag(sync=True)
 
     client_props = Dict(default_value={}).tag(sync=True)
     client_prop_map = PKDict(
@@ -137,6 +111,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         if v_type == VIEW_TYPE_OBJ:
             self.model_data = self.mgr.geom_to_data(g_name)
         elif v_type == VIEW_TYPE_FIELD:
+            #self.rsdbg('pts {}'.format(self._get_current_field_points()))
             if f_type == radia_tk.FIELD_TYPE_MAG_M:
                 self.model_data = self.mgr.magnetization_to_data(g_name)
             elif f_type in radia_tk.POINT_FIELD_TYPES:
@@ -247,15 +222,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             layout={'width': 'fit-content'}
         )
         self.pt_file_btn.on_click(self._upload)
-        #self.pt_file_btn = RadiaFile(
-        #    description='Choose',
-        #    layout={'width': 'fit-content'}
-        #)
-        #self.pt_file_btn.observe(self.xxx, names='file_data')
         self.pt_file_grp = ipywidgets.HBox([
             self.pt_file_btn, self.new_field_point_btn
         ], layout={'padding': '0 6px 0 0'})
-        self.observe(self.xxx, names='file_data')
 
         self.geom_list = ipywidgets.Dropdown(
             layout={'width': 'max-content'},
@@ -376,11 +345,11 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         ])
 
     def _add_field_file(self, b):
-        #self.pt_file_btn.set_fd('SET FD')
-        self.rsdbg('BTN {} ADD FILE DATA {}'.format(
-            self.pt_file_btn,
-            self.file_data
-        ))
+        if len(self.file_data) % 3 != 0:
+            raise ValueError('Invalid file data {}'.format(self.file_data))
+        self.current_field_points = self.file_data
+        self.display()
+
 
     def _add_field_point(self, b):
         new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
@@ -388,26 +357,30 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
                 for p in self.current_field_points]):
             self.rsdbg('Point {} exists'.format(new_pt))
             return
-        self.current_field_points.append(new_pt)
+        #self.current_field_points.append(new_pt)
+        self.current_field_points.extend(new_pt)
         self.display()
 
     def _add_field_line(self, b):
         p1 = [self.line_begin_pt_flds[f].value for f in self.line_begin_pt_flds]
         p2 = [self.line_end_pt_flds[f].value for f in self.line_end_pt_flds]
         self.rsdbg('adding line {} -> {} ({})'.format(p1, p2, self.path_num_pts.value))
-        self.current_field_points.append(p1)
+        #self.current_field_points.append(p1)
+        self.current_field_points.extend(p1)
         n = self.path_num_pts.value - 1
         for i in range(1, n):
-            self.current_field_points.append(
+            #self.current_field_points.append(
+            self.current_field_points.extend(
                 [p1[j] + i * (p2[j] - p1[j]) / n for j in range(len(p1))]
             )
-        self.current_field_points.append(p2)
+        #self.current_field_points.append(p2)
+        self.current_field_points.extend(p2)
         self.display()
 
     def _add_field_circle(self, b):
         ctr = [self.circle_ctr_flds[f].value for f in self.circle_ctr_flds]
         r = self.circle_radius.value
-        # theta is the direction of the normmal
+        # theta is the direction of the normal - use euler angles?
         th = self.circle_theta.value
         self.rsdbg('adding circle at {} rad {} th {} ({})'.format(ctr, r, th, self.path_num_pts.value))
         n = self.path_num_pts.value
@@ -428,7 +401,8 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
                 ctr[2] + aa[2],
             ]
             #self.rsdbg('adding {}'.format(a))
-            self.current_field_points.append(
+            #self.current_field_points.append(
+            self.current_field_points.extend(
                 [aaa[j] for j in range(len(aaa))]
             )
         self.display()
@@ -438,7 +412,12 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             c.disabled = not enabled
 
     def _get_current_field_points(self):
-        return [item for sublist in self.current_field_points for item in sublist]
+        try:
+            # flatten
+            return [item for sublist in self.current_field_points for item in sublist]
+        except TypeError:
+            # already flattened
+            return self.current_field_points
 
     def _radia_displayed(self, o):
         self.geom_list.value = self.current_geom
@@ -532,7 +511,4 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     def _upload(self, b):
         self.current_field_points.clear()
         self.send({'type': 'upload'})
-
-    def xxx(self, d):
-        self.rsdbg('XXX {}'.format(d))
 

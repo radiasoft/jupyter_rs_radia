@@ -25,52 +25,6 @@ const template = [
     '</div>',
 ].join('');
 
-const fileTemplate = [
-    '<div class="radia-file">',
-        '<input type="file" class="radia-file-input">',
-    '</div>',
-].join('');
-
-const RadiaFileModel = widgets.DOMWidgetModel.extend({
-    defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
-        _model_name: 'RadiaFileModel',
-        _view_name: 'RadiaFileView',
-        _model_module: 'jupyter-rs-radia',
-        _view_module: 'jupyter-rs-radia',
-        _model_module_version: '0.0.1',
-        _view_module_version: '0.0.1',
-    }),
-}, {});
-
-const RadiaFileView = widgets.DOMWidgetView.extend({
-
-    handleCustomMessages: function(msg) {
-        if (msg.type === 'debug') {
-            rsUtils.rsdbg(msg.msg);
-        }
-    },
-
-    render: function() {
-        const view = this;
-        $(this.el).append($(fileTemplate));
-        $(this.el).find('.radia-file-input')
-            .on('change', function (e) {
-                const f = e.target.files[0];
-                //rsUtils.rsdbg('RadiaFileView LOAD file', f, 'view', view);
-                const fr = new FileReader();
-                fr.onload = function() {
-                    const d = fr.result;
-                    rsUtils.rsdbg('RadiaFileView LOADED', f.name, d);
-                    view.model.set('file_data', d);
-                    rsUtils.rsdbg('model mow', view.model.get('file_data'));
-                };
-                fr.readAsText(f);
-            });
-        this.listenTo(this.model, "msg:custom", this.handleCustomMessages);
-    },
-
-});
-
 const RadiaViewerModel = controls.VBoxModel.extend({
     defaults: _.extend(controls.VBoxModel.prototype.defaults(), {
         _model_name: 'RadiaViewerModel',
@@ -126,7 +80,6 @@ const RadiaViewerView = controls.VBoxView.extend({
         }
 
         if (msg.type === 'upload') {
-            rsUtils.rsdbg('UPLOAD MSG');
             this.upload();
         }
     },
@@ -208,10 +161,11 @@ const RadiaViewerView = controls.VBoxView.extend({
                     const f = e.target.files[0];
                     const fr = new FileReader();
                     fr.onload = function() {
-                        const d = fr.result;
-                        rsUtils.rsdbg('RadiaFileView LOADED', f.name, d);
+                        const d = fr.result.split(/,\s*/).map(function (x) {
+                            return parseFloat(x);
+                        });
                         view.model.set('file_data', d);
-                        rsUtils.rsdbg('model now', view.model.get('file_data'));
+                        view.touch();
                     };
                     fr.readAsText(f);
                 });
@@ -308,15 +262,12 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     upload: function () {
-        rsUtils.rsdbg('UPLOAD');
         $(this.el).find('.radia-file-input').trigger('click');
     }
 
 });
 
 module.exports = {
-    RadiaFileModel: RadiaFileModel,
-    RadiaFileView: RadiaFileView,
     RadiaViewerModel: RadiaViewerModel,
     RadiaViewerView: RadiaViewerView
 };
