@@ -9,12 +9,11 @@ import radia
 from importlib import resources
 from jupyter_rs_radia import radia_tk
 from jupyter_rs_radia import json as rsjson
-from jupyter_rs_vtk import gui_utils
+from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
-from pykern import pkresource
+from pykern import pkdebug
 from pykern.pkcollections import PKDict
-from pykern.pkdebug import pkdp, pkdlog
-from jupyter_rs_vtk import rs_utils
+#from jupyter_rs_vtk import rs_utils
 from traitlets import All, Any, Dict, Instance, List, Unicode
 
 AXES = ['x', 'y', 'z']
@@ -68,7 +67,6 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
     field_color_map_name = Unicode('').tag(sync=True)
 
-    #file_data = Unicode(default_value='').tag(sync=True)
     file_data = List(default_value=()).tag(sync=True)
 
     client_props = Dict(default_value={}).tag(sync=True)
@@ -82,6 +80,10 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     field_color_maps = List(default_value=list()).tag(sync=True)
     # use "model_info"?  So we don't have "model_data.data"
     model_data = Dict(default_value={}).tag(sync=True)
+    out = ipywidgets.Output(layout={
+        'border': '1px solid black'
+    })
+
     title = Unicode('').tag(sync=True)
     vector_scaling = Unicode('').tag(sync=True)
     vector_scaling_types = List(default_value=list()).tag(sync=True)
@@ -94,6 +96,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     # 'API' calls should support 'command line' style of invocation, and not
     # rely solely on current widget settings
     def display(self, g_name=None, v_type=None, f_type=None, p_type=None):
+        self.out.clear_output()
         self._update_layout()
         self._update_actions()
         if g_name is None:
@@ -102,16 +105,25 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         v_type = self.view_type_list.value if v_type is None else v_type
         f_type = self.field_type_list.value if f_type is None else f_type
         p_type = self.path_type_list.value if p_type is None else p_type
+
+        # return the Output widget by itself when raising errors here
         if v_type not in VIEW_TYPES:
-            raise ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
+            self.do_raise(ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES)))
+            #self.rserr('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
+            return self.out
         if f_type not in radia_tk.FIELD_TYPES:
-            raise ValueError('Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES))
+            self.do_raise(ValueError(
+                'Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES)
+            ))
+            #self.rserr('Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES))
+            return self.out
         if p_type not in PATH_TYPES:
-            raise ValueError('Invalid path {} ({})'.format(p_type, PATH_TYPES))
+            self.do_raise(ValueError('Invalid path {} ({})'.format(p_type, PATH_TYPES)))
+            #self.rserr('Invalid path {} ({})'.format(p_type, PATH_TYPES))
+            return self.out
         if v_type == VIEW_TYPE_OBJ:
             self.model_data = self.mgr.geom_to_data(g_name)
         elif v_type == VIEW_TYPE_FIELD:
-            #self.rsdbg('pts {}'.format(self._get_current_field_points()))
             if f_type == radia_tk.FIELD_TYPE_MAG_M:
                 self.model_data = self.mgr.magnetization_to_data(g_name)
             elif f_type in radia_tk.POINT_FIELD_TYPES:
@@ -124,9 +136,12 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.refresh()
         return self
 
+    @out.capture(clear_output=True)
+    def do_raise(self, ex):
+        raise ex
+
     # print help
-    def help(self):
-        # print('HELP!')
+    def help(self, args):
         pass
 
     def refresh(self):
@@ -286,7 +301,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         solve_prec_grp = _label_grp(
             self.solve_prec,
-            'Precision (' + radia_tk.RadiaGeomMgr.m_field_units + ')'
+            'Precision (' + radia_tk.FIELD_UNITS[radia_tk.FIELD_TYPE_MAG_M] + ')'
         )
 
         self.solve_max_iter = ipywidgets.BoundedIntText(
@@ -342,20 +357,29 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             geom_grp,
             self.vector_grp,
             solve_grp,
+            self.out
         ])
+
+    # capture error messages in the Output widget
+    @out.capture(clear_output=True)
+    def rserr(self, msg):
+        super().rserr(msg)
 
     def _add_field_file(self, b):
         if len(self.file_data) % 3 != 0:
-            raise ValueError('Invalid file data {}'.format(self.file_data))
+            #self.do_raise(ValueError('Invalid file data {}'.format(self.file_data)))
+            self.rserr('Invalid file data {}'.format(self.file_data))
+            return
         self.current_field_points = self.file_data
         self.display()
 
     def _add_field_point(self, b):
         new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
-        if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
-                for p in self.current_field_points]):
-            self.rsdbg('Point {} exists'.format(new_pt))
-            return
+        # redo this for flat array
+        #if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
+        #        for p in self.current_field_points]):
+        #    self.rsdbg('Point {} exists'.format(new_pt))
+        #    return
         self.current_field_points.extend(new_pt)
         self.display()
 
@@ -422,6 +446,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             return self.current_field_points
 
     def _radia_displayed(self, o):
+        #self.rserr('_radia_displayed')
         self.geom_list.value = self.current_geom
 
     def _remove_field_point(self, p_idx):

@@ -1,5 +1,6 @@
 let rsdbg = console.log.bind(console);
 let rslog = console.log.bind(console);
+let rserr = console.error.bind(console);
 
 function indexArray(size) {
     var res = [];
@@ -47,5 +48,6 @@ module.exports = {
     normalize: normalize,
     roundToPlaces: roundToPlaces,
     rsdbg: rsdbg,
+    rserr: rserr,
     rslog: rslog,
 };

@@ -71,8 +71,13 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     handleCustomMessages: function(msg) {
+        //rsUtils.rsdbg(msg);
         if (msg.type === 'debug') {
             rsUtils.rsdbg(msg.msg);
+        }
+
+        if (msg.type === 'error') {
+            rsUtils.rserr(msg.msg);
         }
 
         if (msg.type === 'refresh') {
@@ -102,7 +107,7 @@ const RadiaViewerView = controls.VBoxView.extend({
     },
 
     refresh: function() {
-        //rsUtils.rsdbg('radia refresh');
+        //rsUtils.rserr('radia refresh');
         this.select('.vector-field-color-map-content').css(
             'display', 'none');
         let vectors = this.getVectors();

@@ -3,8 +3,8 @@ import radia
 
 import sys
 
+from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import gui_utils
-from jupyter_rs_vtk import rs_utils
 from numpy import linalg
 from pykern.pkcollections import PKDict
 from pykern.pkdebug import pkdp
@@ -32,9 +32,6 @@ FIELD_UNITS = PKDict({
 class RadiaGeomMgr(rs_utils.RSDebugger):
     """Manager for multiple geometries (Radia objects)"""
 
-    b_field_units = 'T'
-    m_field_units = 'T'
-
     def _get_all_geom(self, geom):
         g_arr = []
         for g in radia.ObjCntStuf(geom):
@@ -59,7 +56,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
 
     def magnetization_to_data(self, name):
         return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)),
-                                         self.m_field_units)
+                                         FIELD_UNITS[FIELD_TYPE_MAG_M])
 
     # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
     def field_to_data(self, name, type, path):
@@ -72,7 +69,6 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         b = numpy.reshape(b, (-1, 3)).tolist()
         for p_idx, pt in enumerate(p):
             pv_arr.append([pt, b[p_idx]])
-        #return self.vector_field_to_data(name, pv_arr, self.b_field_units)
         return self.vector_field_to_data(
             name,
             pv_arr,
