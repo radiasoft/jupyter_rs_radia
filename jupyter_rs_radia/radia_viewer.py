@@ -11,9 +11,7 @@ from jupyter_rs_radia import radia_tk
 from jupyter_rs_radia import json as rsjson
 from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
-from pykern import pkdebug
 from pykern.pkcollections import PKDict
-#from jupyter_rs_vtk import rs_utils
 from traitlets import All, Any, Dict, Instance, List, Unicode
 
 AXES = ['x', 'y', 'z']
@@ -485,10 +483,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             self.solve_max_iter.value,
             self.solve_method.value
         )
-        stop = datetime.datetime.now()
+        d = datetime.datetime.now() - start
         self.display()
         self._enable_controls()
-        d = stop - start
         self.solve_res_label.value = '{} ({}.{:06}s)'.format(
             'Done', d.seconds, d.microseconds
         )

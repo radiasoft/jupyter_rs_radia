@@ -1,6 +1,5 @@
 import numpy
 import radia
-
 import sys
 
 from jupyter_rs_radia import rs_utils
