@@ -8,6 +8,7 @@ import radia
 
 from importlib import resources
 from jupyter_rs_radia import radia_tk
+from jupyter_rs_radia import img
 from jupyter_rs_radia import json as rsjson
 from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
@@ -82,6 +83,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         'border': '1px solid black'
     })
 
+    # sync with js?
+    solve_results = None
+
     title = Unicode('').tag(sync=True)
     vector_scaling = Unicode('').tag(sync=True)
     vector_scaling_types = List(default_value=list()).tag(sync=True)
@@ -97,6 +101,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.out.clear_output()
         self._update_layout()
         self._update_actions()
+        self.solve_results = None
         if g_name is None:
             g_name = self.current_geom
         self.current_geom = g_name
@@ -106,45 +111,51 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
         # return the Output widget by itself when raising errors here
         if v_type not in VIEW_TYPES:
-            self.do_raise(ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES)))
+            self._do_raise(ValueError('Invalid view {} ({})'.format(v_type, VIEW_TYPES)))
             #self.rserr('Invalid view {} ({})'.format(v_type, VIEW_TYPES))
             return self.out
         if f_type not in radia_tk.FIELD_TYPES:
-            self.do_raise(ValueError(
+            self._do_raise(ValueError(
                 'Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES)
             ))
             #self.rserr('Invalid field {} ({})'.format(f_type, radia_tk.FIELD_TYPES))
             return self.out
         if p_type not in PATH_TYPES:
-            self.do_raise(ValueError('Invalid path {} ({})'.format(p_type, PATH_TYPES)))
+            self._do_raise(ValueError('Invalid path {} ({})'.format(p_type, PATH_TYPES)))
             #self.rserr('Invalid path {} ({})'.format(p_type, PATH_TYPES))
             return self.out
         if v_type == VIEW_TYPE_OBJ:
             self.model_data = self.mgr.geom_to_data(g_name)
         elif v_type == VIEW_TYPE_FIELD:
             if f_type == radia_tk.FIELD_TYPE_MAG_M:
-                self.model_data = self.mgr.magnetization_to_data(g_name)
+                self.solve_results = self.mgr.get_magnetization(g_name)
             elif f_type in radia_tk.POINT_FIELD_TYPES:
-                self.model_data = self.mgr.field_to_data(
+                self.solve_results = self.mgr.get_field(
                     g_name,
                     f_type,
                     self._get_current_field_points()
                 )
+            self.model_data = self.mgr.vector_field_to_data(
+                g_name,
+                self.solve_results,
+                radia_tk.FIELD_UNITS[f_type]
+            )
+
         self.vtk_viewer.set_data(self.model_data)
-        self.refresh()
+        self._refresh()
         return self
 
-    @out.capture(clear_output=True)
-    def do_raise(self, ex):
-        raise ex
+    def get_result(self):
+        return self.solve_results
 
     # print help
     def help(self, args):
         pass
 
-    def refresh(self):
-        self._set_title()
-        self.send({'type': 'refresh'})
+    # override to capture error messages in the Output widget
+    @out.capture(clear_output=True)
+    def rserr(self, msg):
+        super().rserr(msg)
 
     def __init__(self, mgr=None):
         self.model_data = {}
@@ -299,7 +310,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         solve_prec_grp = _label_grp(
             self.solve_prec,
-            'Precision (' + radia_tk.FIELD_UNITS[radia_tk.FIELD_TYPE_MAG_M] + ')'
+            'Precision (' + radia_tk.FIELD_UNITS[radia_tk.FIELD_TYPE_MAG_B] + ')'
         )
 
         self.solve_max_iter = ipywidgets.BoundedIntText(
@@ -320,14 +331,40 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         self.solve_btn.on_click(self._solve)
 
+        spnr = resources.read_binary(img, 'sirepo_animated.gif')
+        self.solve_spinner = ipywidgets.Image(
+            value=spnr, format='gif', width=24, height=24
+        )
+        self.solve_spinner.layout.display = 'none'
+
         self.solve_res_label = ipywidgets.Label()
+
+        #self.export_btn = ipywidgets.Button(
+        #    description='Export',
+        #    layout={'width': 'fit-content'},
+        #)
+        #self.export_btn.on_click(self._export)
+
+        #self.export_link = ipywidgets.HTML(
+        #    value='<a href="#" download="xxx">Export</a>'
+        #)
+        #self.export_link.add_class('radia-file-output')
+
+        self.reset_btn = ipywidgets.Button(
+            description='Reset',
+            layout={'width': 'fit-content'},
+        )
+        self.reset_btn.on_click(self._reset)
 
         solve_grp = ipywidgets.HBox([
             solve_prec_grp,
             solve_max_iter_grp,
             solve_method_grp,
             self.solve_btn,
-            self.solve_res_label
+            self.solve_spinner,
+            self.solve_res_label,
+            #self.export_btn,
+            #self.export_link
         ], layout={'padding': '3px 0px 3px 0px'})
 
         # for enabling/disabling as a whole
@@ -358,14 +395,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             self.out
         ])
 
-    # capture error messages in the Output widget
-    @out.capture(clear_output=True)
-    def rserr(self, msg):
-        super().rserr(msg)
-
     def _add_field_file(self, b):
         if len(self.file_data) % 3 != 0:
-            #self.do_raise(ValueError('Invalid file data {}'.format(self.file_data)))
+            #self._do_raise(ValueError('Invalid file data {}'.format(self.file_data)))
             self.rserr('Invalid file data {}'.format(self.file_data))
             return
         self.current_field_points = self.file_data
@@ -373,25 +405,24 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
     def _add_field_point(self, b):
         new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
-        # redo this for flat array
         #if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
         #        for p in self.current_field_points]):
         #    self.rsdbg('Point {} exists'.format(new_pt))
         #    return
-        self.current_field_points.extend(new_pt)
+        self.current_field_points.append(new_pt)
         self.display()
 
     def _add_field_line(self, b):
         p1 = [self.line_begin_pt_flds[f].value for f in self.line_begin_pt_flds]
         p2 = [self.line_end_pt_flds[f].value for f in self.line_end_pt_flds]
         #self.rsdbg('adding line {} -> {} ({})'.format(p1, p2, self.path_num_pts.value))
-        self.current_field_points.extend(p1)
+        self.current_field_points.append(p1)
         n = self.path_num_pts.value - 1
         for i in range(1, n):
-            self.current_field_points.extend(
+            self.current_field_points.append(
                 [p1[j] + i * (p2[j] - p1[j]) / n for j in range(len(p1))]
             )
-        self.current_field_points.extend(p2)
+        self.current_field_points.append(p2)
         self.display()
 
     def _add_field_circle(self, b):
@@ -417,13 +448,13 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
                 ctr[1] + aa[1],
                 ctr[2] + aa[2],
             ]
-            self.current_field_points.extend(
+            self.current_field_points.append(
                 [aaa[j] for j in range(len(aaa))]
             )
         self.display()
 
     def _data_loaded(self, d):
-        # other stuff?
+        # other stuff?  validate here?
         #self.rsdbg('DATA LOADED {}'.format(d['new']))
         self._enable_controls()
 
@@ -431,9 +462,17 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         for c in self.controls:
             c.disabled = True
 
+    @out.capture(clear_output=True)
+    def _do_raise(self, ex):
+        raise ex
+
     def _enable_controls(self):
         for c in self.controls:
             c.disabled = False
+
+    #def _export(self, b):
+    #    self.rsdbg('EXPORT {}'.format(self.solve_results))
+    #    self.send({'type': 'download'})
 
     def _get_current_field_points(self):
         try:
@@ -444,11 +483,18 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             return self.current_field_points
 
     def _radia_displayed(self, o):
-        #self.rserr('_radia_displayed')
+        #self.rsdbg('_radia_displayed')
         self.geom_list.value = self.current_geom
+
+    def _refresh(self):
+        self._set_title()
+        self.send({'type': 'refresh'})
 
     def _remove_field_point(self, p_idx):
         pass
+
+    def _reset(self):
+        self.rsdbg('RESET')
 
     def _set_current_geom(self, d):
         g_name = d['new']
@@ -476,16 +522,25 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     def _solve(self, b):
         self._disable_controls()
         self.solve_res_label.value = ''
+        self.solve_spinner.layout.display = None
         start = datetime.datetime.now()
-        res = radia.Solve(
-            self.mgr.get_geom(self.current_geom),
-            self.solve_prec.value,
-            self.solve_max_iter.value,
-            self.solve_method.value
-        )
-        d = datetime.datetime.now() - start
+        # move all radia refs to tk?
+        try:
+            res = radia.Solve(
+                self.mgr.get_geom(self.current_geom),
+                self.solve_prec.value,
+                self.solve_max_iter.value,
+                self.solve_method.value
+            )
+        except RuntimeError as ex:
+            self.rserr('Solve failed: {}'.format(ex))
+            #self._do_raise(ex)
+            return
+        finally:
+            self.solve_spinner.layout.display = 'none'
+            self._enable_controls()
         self.display()
-        self._enable_controls()
+        d = datetime.datetime.now() - start
         self.solve_res_label.value = '{} ({}.{:06}s)'.format(
             'Done', d.seconds, d.microseconds
         )

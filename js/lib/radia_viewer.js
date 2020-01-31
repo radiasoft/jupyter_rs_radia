@@ -7,10 +7,24 @@ let guiUtils = require('./gui_utils');
 let rsUtils = require('./rs_utils');
 let widgets = require('@jupyter-widgets/base');
 
+const MSG_TYPE_DEBUG = 'debug';
+//const MSG_TYPE_DOWNLOAD = 'download';
+const MSG_TYPE_ERROR = 'error';
+const MSG_TYPE_REFRESH = 'refresh';
+const MSG_TYPE_UPLOAD = 'upload';
+
+const MSG_TYPES = [
+    MSG_TYPE_DEBUG,
+    //MSG_TYPE_DOWNLOAD,
+    MSG_TYPE_ERROR,
+    MSG_TYPE_REFRESH,
+    MSG_TYPE_UPLOAD
+];
+
 const template = [
     '<div class="radia-viewer">',
         '<div class="radia-viewer-title" style="font-weight: normal; text-align: center"></div>',
-        '<input class="radia-file-input" type="file" style="visibility:hidden" />',
+        '<input class="radia-file-input" type="file" style="visibility:hidden" />',  // move to widget?
         '<div class="selection-info">',
           '<span class="selection-info-value" style="padding-left: 4px;"></span>',
         '</div>',
@@ -66,25 +80,37 @@ const RadiaViewerView = controls.VBoxView.extend({
     vtkViewer: null,
     vtkViewerEl: null,
 
+    //download: function() {
+    //    $(this.el).find('.radia-file-output').trigger('click');
+    //},
+
     getVectors: function() {
         return ((this.model.get('model_data').data || [])[0] || {}).vectors;
     },
 
     handleCustomMessages: function(msg) {
         //rsUtils.rsdbg(msg);
-        if (msg.type === 'debug') {
+        if (MSG_TYPES.indexOf(msg.type) < 0) {
+            throw new Error(msg.type + ': Unknown message type')
+        }
+
+        if (msg.type === MSG_TYPE_DEBUG) {
             rsUtils.rsdbg(msg.msg);
         }
 
-        if (msg.type === 'error') {
+        //if (msg.type === MSG_TYPE_DOWNLOAD) {
+        //    this.download();
+        //}
+
+        if (msg.type === MSG_TYPE_ERROR) {
             rsUtils.rserr(msg.msg);
         }
 
-        if (msg.type === 'refresh') {
+        if (msg.type === MSG_TYPE_REFRESH) {
             this.refresh();
         }
 
-        if (msg.type === 'upload') {
+        if (msg.type === MSG_TYPE_UPLOAD) {
             this.upload();
         }
     },
@@ -176,6 +202,14 @@ const RadiaViewerView = controls.VBoxView.extend({
                     };
                     fr.readAsText(f);
                 });
+
+            /*
+            $(view.el).find('.radia-file-output')
+                .on('click', function (e) {
+                    //'data:text/plain;charset=utf-8,' + encodeURIComponent(csv);
+                    e.stopPropagation();
+                });
+            */
         });
 
         this.model.on('change:field_color_map_name', this.setFieldColorMap, this);

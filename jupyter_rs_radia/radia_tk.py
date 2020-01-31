@@ -19,6 +19,7 @@ POINT_FIELD_TYPES = [
 ]
 FIELD_TYPES.extend(POINT_FIELD_TYPES)
 
+# these might be available from radia
 FIELD_UNITS = PKDict({
     FIELD_TYPE_MAG_A: 'T m',
     FIELD_TYPE_MAG_B: 'T',
@@ -43,36 +44,24 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
     def add_geom(self, name, geom):
         self._geoms[name] = PKDict(g=geom, solved=False)
 
-    def curr_field_to_data(self, name, path):
-        return self.field_to_data(name, 'a', path)
-
-    def is_geom_solved(self, name):
-        return self.get_geom(name).solved
-
     # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
-    def mag_field_to_data(self, name, path):
-        return self.field_to_data(name, 'b', path)
-
-    def magnetization_to_data(self, name):
-        return self.vector_field_to_data(name, radia.ObjM(self.get_geom(name)),
-                                         FIELD_UNITS[FIELD_TYPE_MAG_M])
-
-    # path is *flattened* array of positions in space ([x1, y1, z1,...xn, yn, zn])
-    def field_to_data(self, name, type, path):
+    def get_field(self, name, f_type, path):
         pv_arr = []
         p = numpy.reshape(path, (-1, 3)).tolist()
         b = []
         # get every component
-        f = radia.Fld(self.get_geom(name), type, path)
+        f = radia.Fld(self.get_geom(name), f_type, path)
         b.extend(f)
         b = numpy.reshape(b, (-1, 3)).tolist()
         for p_idx, pt in enumerate(p):
             pv_arr.append([pt, b[p_idx]])
-        return self.vector_field_to_data(
-            name,
-            pv_arr,
-            FIELD_UNITS[type] if type in FIELD_UNITS else ''
-        )
+        return pv_arr
+
+    def get_magnetization(self, name):
+        return radia.ObjM(self.get_geom(name))
+
+    def is_geom_solved(self, name):
+        return self.get_geom(name).solved
 
     # define send to satisfy RSDebugger - get web socket somehow instead?
     def send(self, msg):
