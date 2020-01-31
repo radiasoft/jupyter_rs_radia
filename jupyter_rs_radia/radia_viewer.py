@@ -133,7 +133,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
                 self.solve_results = self.mgr.get_field(
                     g_name,
                     f_type,
-                    self._get_current_field_points()
+                    self.get_field_points()
                 )
             self.model_data = self.mgr.vector_field_to_data(
                 g_name,
@@ -144,6 +144,14 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.vtk_viewer.set_data(self.model_data)
         self._refresh()
         return self
+
+    def get_field_points(self):
+        try:
+            # flatten
+            return [item for sublist in self.current_field_points for item in sublist]
+        except TypeError:
+            # already flattened
+            return self.current_field_points
 
     def get_result(self):
         return self.solve_results
@@ -473,14 +481,6 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     #def _export(self, b):
     #    self.rsdbg('EXPORT {}'.format(self.solve_results))
     #    self.send({'type': 'download'})
-
-    def _get_current_field_points(self):
-        try:
-            # flatten
-            return [item for sublist in self.current_field_points for item in sublist]
-        except TypeError:
-            # already flattened
-            return self.current_field_points
 
     def _radia_displayed(self, o):
         #self.rsdbg('_radia_displayed')
