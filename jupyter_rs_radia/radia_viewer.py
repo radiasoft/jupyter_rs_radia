@@ -286,9 +286,16 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         circle_theta_grp = _label_grp(self.circle_theta, '𝞱')
 
+        self.circle_phi = ipywidgets.BoundedFloatText(
+            min=-math.pi, max=math.pi, step=0.1,
+            value=0.0,
+            layout={'width': '48px'}
+        )
+        circle_phi_grp = _label_grp(self.circle_phi, '𝞿')
+
         self.circle_grp = ipywidgets.HBox([
-            circle_ctr_grp, circle_radius_grp, circle_theta_grp, num_pts_grp,
-            self.new_field_point_btn
+            circle_ctr_grp, circle_radius_grp, circle_theta_grp, circle_phi_grp,
+            num_pts_grp, self.new_field_point_btn
         ], layout={'padding': '0 6px 0 0'})
 
         #self.pt_file_btn = ipywidgets.FileUpload()
@@ -479,29 +486,44 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     def _add_field_circle(self, b):
         ctr = [self.circle_ctr_flds[f].value for f in self.circle_ctr_flds]
         r = float(self.circle_radius.value)
-        # theta is a rotation about the x-axis - use euler angles?
+        # theta is a rotation about the x-axis
         th = float(self.circle_theta.value)
+        # phi is a rotation about the z-axis
+        phi = float(self.circle_phi.value)
         #self.rsdbg('adding circle at {} rad {} th {} ({})'.format(ctr, r, th, self.path_num_pts.value))
         n = self.path_num_pts.value
-        dphi = 2. * math.pi / n
+        dpsi = 2. * math.pi / n
+        # psi is the angle in the circle's plane
         for i in range(0, n):
-            phi = i * dphi
-            a = [r * math.sin(phi), r * math.cos(phi), 0]
-            # rotate around x axis
-            aa = [
-                a[0],
-                a[1] * math.cos(th) - a[2] * math.sin(th),
-                a[1] * math.sin(th) + a[2] * math.cos(th),
-            ]
-            #translate
-            aaa = [
-                ctr[0] + aa[0],
-                ctr[1] + aa[1],
-                ctr[2] + aa[2],
-            ]
-            self.current_field_points.append(
-                [aaa[j] for j in range(len(aaa))]
-            )
+            psi = i * dpsi
+            # initial position of the point...
+            # a = [r * math.sin(psi), r * math.cos(psi), 0]
+            # ...rotate around x axis
+            # a' = [
+            #    a[0],
+            #    a[1] * math.cos(th) - a[2] * math.sin(th),
+            #    a[1] * math.sin(th) + a[2] * math.cos(th),
+            # ]
+            # ...rotate around z axis
+            # a'' = [
+            #    aa[0] * math.cos(phi) - aa[1] * math.cos(th),
+            #    aa[0] * math.sin(phi) + aa[1] * math.cos(phi),
+            #    aa[2]
+            # ]
+            # ...translate to final position
+            # a''' = [
+            #    ctr[0] + aaa[0],
+            #    ctr[1] + aaa[1],
+            #    ctr[2] + aaa[2],
+            # ]
+            # final position:
+            self.current_field_points.append([
+                r * math.sin(psi) * math.cos(phi) -
+                    r * math.cos(psi) * math.cos(th) * math.sin(phi) + ctr[0],
+                r * math.sin(psi) * math.sin(phi) -
+                    r * math.cos(psi) * math.cos(th) * math.cos(phi) + ctr[1],
+                r * math.cos(psi) * math.sin(th) + ctr[2]
+            ])
         self.display()
 
     def _data_loaded(self, d):
