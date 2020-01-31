@@ -463,17 +463,12 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
     def _add_field_point(self, b):
         new_pt = [self.new_field_pt_flds[f].value for f in self.new_field_pt_flds]
-        #if any([new_pt[0] == p[0] and new_pt[1] == p[1] and new_pt[2] == p[2]
-        #        for p in self.current_field_points]):
-        #    self.rsdbg('Point {} exists'.format(new_pt))
-        #    return
         self.current_field_points.append(new_pt)
         self.display()
 
     def _add_field_line(self, b):
         p1 = [self.line_begin_pt_flds[f].value for f in self.line_begin_pt_flds]
         p2 = [self.line_end_pt_flds[f].value for f in self.line_end_pt_flds]
-        #self.rsdbg('adding line {} -> {} ({})'.format(p1, p2, self.path_num_pts.value))
         self.current_field_points.append(p1)
         n = self.path_num_pts.value - 1
         for i in range(1, n):
@@ -490,7 +485,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         th = float(self.circle_theta.value)
         # phi is a rotation about the z-axis
         phi = float(self.circle_phi.value)
-        #self.rsdbg('adding circle at {} rad {} th {} ({})'.format(ctr, r, th, self.path_num_pts.value))
+        #self.rsdbg('adding circle at {} rad {} th {} phi {} ({})'.format(ctr, r, th, phi, self.path_num_pts.value))
         n = self.path_num_pts.value
         dpsi = 2. * math.pi / n
         # psi is the angle in the circle's plane
