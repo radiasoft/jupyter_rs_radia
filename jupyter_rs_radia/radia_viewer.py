@@ -51,15 +51,18 @@ def _label_grp(widget, txt, layout={'padding': '0 6px 0 0'}):
 
 @ipywidgets.register
 class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
-    """Radia interface"""
+    """Jupyter widget for visualizing 3D Radia models.
+
+    RadiaViewer allows users to render a magnet geometry and solve for its fields
+    in a self-contained widget. The rendering is done by the VTK.js library.
+    """
+
     _view_name = Unicode('RadiaViewerView').tag(sync=True)
     _model_name = Unicode('RadiaViewerModel').tag(sync=True)
     _view_module = Unicode('jupyter-rs-radia').tag(sync=True)
     _model_module = Unicode('jupyter-rs-radia').tag(sync=True)
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
-
-    _is_displayed = False
 
     current_geom = Unicode('').tag(sync=True)
     current_field_points = []
@@ -91,13 +94,45 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
     vector_scaling_types = List(default_value=list()).tag(sync=True)
     vtk_viewer = None
 
-    def add_geometry(self, geom_name, geom):
-        self.mgr.add_geom(geom_name, geom)
+    def add_geometry(self, g_name, geom):
+        """Adds a Radia geometry to the viewer.
+
+        Args:
+            g_name (str): a suitable name for this geometry
+            geom (int): the reference to the geometry
+        """
+        self.mgr.add_geom(g_name, geom)
         self.geom_list.options = [n for n in self.mgr.get_geoms()]
 
     # 'API' calls should support 'command line' style of invocation, and not
     # rely solely on current widget settings
     def display(self, g_name=None, v_type=None, f_type=None, p_type=None):
+        """Shows the selected geometry or its associated fields.
+
+        All args are optional; when they are omitted, the viewer will use the
+        values set in the GUI.
+
+        Args:
+            g_name (str, optional): name of a geometry
+            v_type (str optional): view type, one of 'Objects' or 'Fields'
+            f_type (str optional): field type, one of:
+                'M' (magnetization)
+                'B' (magnetic field)
+                'A' (vector potential)
+                'H' (magnetic field strength)
+                'J' (current density)
+            p_type (str optional): path type, one of:
+                'Line'
+                'Circle'
+                'Manual'
+                'File'
+        Returns:
+            Widget: the viewer instance if successful,
+            else an Output widget containing an error message
+        Raises:
+            KeyError: if no geometry named <g_name> has been added
+            ValueError: if v_type, f_type, or p_type are invalid
+        """
         self.out.clear_output()
         self._update_layout()
         self._update_actions()
@@ -146,19 +181,27 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         return self
 
     def get_field_points(self):
+        """
+        Returns:
+            list: the points where the field is being evaluated, or None
+            if the view type is 'Objects' or the field type is 'M'.
+            The list is flattened (x0, y0, y1,...)
+            to use as input to Radia.Fld()
+        """
         try:
             # flatten
             return [item for sublist in self.current_field_points for item in sublist]
         except TypeError:
-            # already flattened
+            # already flattened, as from a file
             return self.current_field_points
 
     def get_result(self):
+        """
+        Returns:
+            list: the field points and the value of the field thereat.
+            (((x0, y0, z0), (fx0, fy0, fz0)),...)
+        """
         return self.solve_results
-
-    # print help
-    def help(self, args):
-        pass
 
     # override to capture error messages in the Output widget
     @out.capture(clear_output=True)
