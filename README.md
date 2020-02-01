@@ -52,6 +52,11 @@ You should see your selected geometry as below:
 
 ![Radia_Example05](https://raw.githubusercontent.com/radiasoft/jupyter-rs-radia/blob/master/examples/Radia_Example05.png)
 
+#### Camera controls
+
+*Reset Camera*: moves the camea back to the default position
+
+*X*, *Y*, *Z*: moves the camera so that axis is pointing in (&#2299;) or out (&#29bb;) of the screen
 
 vtk controls
 
