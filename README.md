@@ -50,21 +50,36 @@ Understanding the viewer
 ------------
 You should see your selected geometry as below:
 
-![Radia_Example05](https://raw.githubusercontent.com/radiasoft/jupyter-rs-radia/blob/master/examples/Radia_Example05.png)
+![Radia_Example05](https://github.com/radiasoft/jupyter-rs-radia/blob/master/examples/Radia_Example05.png)
 
-#### Camera controls
+### Camera controls
+#### Using the mouse or trackpad:
+Click and drag in the 3D display to rotate the objects freehand.
 
-*Reset Camera*: moves the camea back to the default position
+Shift-click and drag to pan.
 
-*X*, *Y*, *Z*: moves the camera so that axis is pointing in (&#2299;) or out (&#29bb;) of the screen
+Scroll to zoom in and out.
 
-vtk controls
+#### Other controls:
+**Reset Camera**: moves the camera back to the default position.
 
+**X**, **Y**, **Z**: moves the camera so that axis is pointing in (&#8857;) or out (&#10683;) of the screen.
+
+**Show marker** toggles the cube in the upper right corner.
+
+### Viewer properties
+**Background color**: pops up a color picker to change the background color of the 3D area.
+
+### Object properties
+*Note: only visible when the View (see below) is set to "Objects".*
+
+**Object color**: first control-click an object in the 3D area to select it.  Then click *Object color* to pop up a color picker.  When complete, control-click again to deselect the object
+
+**Surface alpha**: fades the faces of the objects.  The edges are unaffected.
 radia controls
 
 Solve
-
-ctrl-left-click to select objects or arrows
+ctrl-click to select objects or arrows
 Notes
 ------------
 If the selected geometry is a container, each member is individually selectable via ctl-left click. However, if a member is also a container, it is not further subdivided
