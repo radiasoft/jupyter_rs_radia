@@ -59,6 +59,8 @@ Shift-click and drag to pan.
 
 Scroll to zoom in and out.
 
+Control-click to select objects and fields (see below)
+
 #### Camera controls
 **Reset Camera**: moves the camera back to the default position.
 
@@ -80,7 +82,9 @@ Scroll to zoom in and out.
 *Note: only visible when the View is set to "Objects".*
 
 **Object color**: first control-click an object in the 3D area to select it.  Then click *Object color* to pop up a
-color picker.  When complete, control-click again to deselect the object
+color picker.  When complete, control-click again to deselect the object.  If the selected geometry is a container,
+each member is individually selectable. However, if a member is also a container, it is not further subdivided
+
 
 **Surface alpha**: fades the faces of the objects.  The edges are unaffected.
 
@@ -112,13 +116,32 @@ color picker.  When complete, control-click again to deselect the object
     the linear- and log-scaled vectors in the same visual range
     
 #### Radia controls
-**Field**
-**Path**
-**Precision**
-**Max iterations**
-**Method**
-**Solve**
-Notes
-------------
-If the selected geometry is a container, each member is individually selectable via ctl-left click. However, if a member is also a container, it is not further subdivided
+**Field**: selects the field plotted. Choices include:
+* M (magnetization)
+* B (magnetic field)
+* A (vector potential)
+* H (magnetic field strength)
+* J (current density)
+
+Radia calculates the magnetization within subdivided passive magnet elements. The other fields require the
+user to define where they are evaluated:
+
+**Path** adds points for evaluation of the fields. Choices include:
+* Line: set a start point, end point, and number of evaluation points.
+* Circle: set the center, radius, euler angles of the normal of circle's plane, and number of evaluation points.
+* Manual: add points one at a time
+* File: upload points from a text file.  The coordinates must be flattened and comma-delimited
+(i.e. *x0, y0, z0, x1, y1, z1,...*)
+
+Add the path(s) of interest with the **+** button.  The points will be appended to those already in place, with the
+exception of those added from a file.  In that case any existing points are deleted.  List all the current points
+with `rv.get_field_points()`.
+
+**Precision**, **Max iterations**, **Method**: refer to the Radia documentation for precise definitions of these
+settings.
+
+**Solve**: execute `RadSolve()`.  When complete, the solution will be reflected in the display of field vectors.
+Control-click an individual vector to see its magnitude and direction, or list the full set of field points and
+values wiith `rv.get_result()`.
+
 
