@@ -6,12 +6,11 @@ import json
 import math
 import radia
 
-from importlib import resources
 from jupyter_rs_radia import radia_tk
-from jupyter_rs_radia import img
-from jupyter_rs_radia import json as rsjson
 from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
+from pykern import pkio
+from pykern import pkresource
 from pykern.pkcollections import PKDict
 from traitlets import All, Any, Dict, Instance, List, Unicode
 
@@ -215,9 +214,9 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.vtk_viewer = vtk_viewer.Viewer()
 
         #TODO(mvk): build view from this schema
-        self.schema = PKDict(json.JSONDecoder().decode(
-            resources.read_text(rsjson, 'schema.json')
-        ))
+        self.schema = pkcollections.json_load_any(
+            pkio.py_path(pkresource.filename('schema.json')),
+        )
 
         self.view_type_list = ipywidgets.Dropdown(
             layout={'width': 'max-content'},
@@ -389,7 +388,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         )
         self.solve_btn.on_click(self._solve)
 
-        spnr = resources.read_binary(img, 'sirepo_animated.gif')
+        spnr = pkio.read_binary(pkresource.filename('sirepo_animated.gif'))
         self.solve_spinner = ipywidgets.Image(
             value=spnr, format='gif', width=24, height=24
         )
@@ -651,4 +650,3 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.current_field_points.clear()
         #self._disable_controls()
         self.send({'type': 'upload'})
-
