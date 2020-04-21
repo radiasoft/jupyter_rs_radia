@@ -36,7 +36,7 @@ function normalize(seq) {
 
 function roundToPlaces(val, p) {
     if (p < 0) {
-        return n;
+        return val;
     }
     const r = Math.pow(10, p);
     return Math.round(val * r) / r;
