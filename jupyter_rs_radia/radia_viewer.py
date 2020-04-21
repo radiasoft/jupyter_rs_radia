@@ -9,6 +9,7 @@ import radia
 from jupyter_rs_radia import radia_tk
 from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
+from pykern import pkcollections
 from pykern import pkio
 from pykern import pkresource
 from pykern.pkcollections import PKDict
