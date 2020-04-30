@@ -601,8 +601,8 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
             self._enable_controls()
         self.display()
         d = datetime.datetime.now() - start
-        self.solve_res_label.value = '{} ({}.{:06}s)'.format(
-            'Done', d.seconds, d.microseconds
+        self.solve_res_label.value = 'Done {} steps ({}.{:06}s): Max |M| {:.4}T; Max |H| {:.4}A/m'.format(
+            int(res[3]), d.seconds, d.microseconds, res[1], res[2]
         )
 
     # show/hide/enable/disable controls based on current state
