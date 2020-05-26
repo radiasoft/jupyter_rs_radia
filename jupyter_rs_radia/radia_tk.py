@@ -103,7 +103,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         #TODO(mvk): if no color, get color from parent if any?
         geom = self.get_geom(name)
         d_arr = []
-        if not divide:
+        if not divide  or len(radia.ObjCntStuf(geom)) == 0:
             d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(geom, 'Axes->No')))
         else:
             for g in radia.ObjCntStuf(geom):
