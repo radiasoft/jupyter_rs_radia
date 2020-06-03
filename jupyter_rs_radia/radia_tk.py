@@ -99,21 +99,8 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
 
         return PKDict(name=name + '.Field', id=self.get_geom(name), data=[v_data])
 
-    #def geom_to_data(self, name, divide=True):
-    #    #TODO(mvk): if no color, get color from parent if any?
-    #    geom = self.get_geom(name)
-    #    d_arr = []
-    #    if not divide  or len(radia.ObjCntStuf(geom)) == 0:
-    #        d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(geom, 'Axes->No')))
-    #    else:
-    #        for g in radia.ObjCntStuf(geom):
-    #        # for fully recursive array
-    #        # for g in self._get_all_geom(geom):
-    #            d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
-    #
-    #    return PKDict(name=name + '.Geom', id=geom, data=d_arr)
-
     def geom_to_data(self, name=None, divide=True):
+        #TODO(mvk): if no color, get color from parent if any?
         g_id = self.get_geom(name)
         n = (name if name is not None else str(g_id)) + '.Geom'
         pd = PKDict(name=n, id=g_id, data=[])
@@ -122,7 +109,6 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         c = radia.ObjCntStuf(g_id)
         l = len(c)
         if not divide or l == 0:
-            # d_arr.append(template_common.to_pkdict(radia.ObjDrwVTK(g_id, 'Axes->No')))
             pd.data = [d]
         else:
             d_arr = []
@@ -134,7 +120,6 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
                 s_d = rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No'))
                 n_s_verts += len(s_d.polygons.vertices)
                 d_arr.append(s_d)
-                # d_arr.append(template_common.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
             # if the number of vertices of the container is more than the total
             # across its elements, a symmetry or other "additive" transformation has
             # been applied and we cannot get at the individual elements
@@ -142,7 +127,6 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
                 d_arr = [d]
             pd.data = d_arr
         return pd
-
 
     def get_geom(self, name):
         return self._geoms[name].g
