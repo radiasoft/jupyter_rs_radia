@@ -99,19 +99,34 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
 
         return PKDict(name=name + '.Field', id=self.get_geom(name), data=[v_data])
 
-    def geom_to_data(self, name, divide=True):
+    def geom_to_data(self, name=None, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
-        geom = self.get_geom(name)
-        d_arr = []
-        if not divide:
-            d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(geom, 'Axes->No')))
+        g_id = self.get_geom(name)
+        n = (name if name is not None else str(g_id)) + '.Geom'
+        pd = PKDict(name=n, id=g_id, data=[])
+        d = rs_utils.to_pkdict(radia.ObjDrwVTK(g_id, 'Axes->No'))
+        n_verts = len(d.polygons.vertices)
+        c = radia.ObjCntStuf(g_id)
+        l = len(c)
+        if not divide or l == 0:
+            pd.data = [d]
         else:
-            for g in radia.ObjCntStuf(geom):
-            # for fully recursive array
-            # for g in self._get_all_geom(geom):
-                d_arr.append(rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No')))
-
-        return PKDict(name=name + '.Geom', id=geom, data=d_arr)
+            d_arr = []
+            n_s_verts = 0
+            # for g in get_geom_tree(g_id):
+            for g in c:
+                # for fully recursive array
+                # for g in get_all_geom(geom):
+                s_d = rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No'))
+                n_s_verts += len(s_d.polygons.vertices)
+                d_arr.append(s_d)
+            # if the number of vertices of the container is more than the total
+            # across its elements, a symmetry or other "additive" transformation has
+            # been applied and we cannot get at the individual elements
+            if n_verts > n_s_verts:
+                d_arr = [d]
+            pd.data = d_arr
+        return pd
 
     def get_geom(self, name):
         return self._geoms[name].g
