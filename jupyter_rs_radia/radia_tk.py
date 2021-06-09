@@ -89,7 +89,9 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data.vectors.range = [v_min, v_max]
         v_data.vectors.units = units
 
-        l_data = self.geom_to_data(name, divide=False).data[0]
+        geom_data = self.geom_to_data(name, divide=False)
+        l_data = geom_data.data[0]
+
         # temp color set - will move to client
         for c_idx, c in enumerate(l_data.lines.colors):
             l_data.lines.colors[c_idx] = 0.85
@@ -97,7 +99,12 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data.lines.lengths.extend(l_data.lines.lengths)
         v_data.lines.colors.extend(l_data.lines.colors)
 
-        return PKDict(name=name + '.Field', id=self.get_geom(name), data=[v_data])
+        return PKDict(
+            name=name + '.Field',
+            id=self.get_geom(name),
+            data=[v_data],
+            bounds=geom_data.bounds
+        )
 
     def geom_to_data(self, name=None, divide=True):
         #TODO(mvk): if no color, get color from parent if any?
@@ -126,6 +133,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             if n_verts > n_s_verts:
                 d_arr = [d]
             pd.data = d_arr
+        pd.bounds = radia.ObjGeoLim(g_id)
         return pd
 
     def get_geom(self, name):
