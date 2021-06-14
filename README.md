@@ -11,12 +11,12 @@ Installation
 To install use pip:
 
     $ pip install .
+    $ jupyter nbextension install --py --symlink --sys-prefix jupyter_rs_radia
     $ jupyter nbextension enable --py --sys-prefix jupyter_rs_radia
 
 To install for jupyterlab
 
-    $ cd js
-    $ jupyter labextension install .
+    $ jupyter labextension install js
 
 For a development installation (requires npm),
 
