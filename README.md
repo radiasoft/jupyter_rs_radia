@@ -24,7 +24,7 @@ For a development installation (requires npm),
 
 When actively developing your extension, use watch to hot reload on changes:
 
-    $ jlpm watch
+    $ jlpm watch:labextension
 
 This takes a minute or so to get started, but then allows you to hot-reload your javascript extension.
 To see a change, save your javascript, watch the terminal for an update.

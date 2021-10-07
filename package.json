@@ -62,7 +62,6 @@
         "clean:labextension": "rimraf jupyter_rs_radia/labextension",
         "install:extension": "jupyter labextension develop --overwrite .",
         "prepare": "jlpm run build:prod",
-        "watch": "watch:labextension",
         "watch:labextension": "jupyter labextension watch ."
     },
     "version": "0.0.1"
