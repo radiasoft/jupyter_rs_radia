@@ -6,4 +6,4 @@ build/
 *.py[cod]
 node_modules/
 .DS_Store
-jupyter-rs-radia/labextension
+jupyter_rs_radia/labextension

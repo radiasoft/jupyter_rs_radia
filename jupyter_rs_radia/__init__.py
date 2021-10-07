@@ -4,6 +4,6 @@ def _jupyter_labextension_paths():
     return [
         {
             'src': 'labextension',
-            'dest': 'jupyter-rs-radia',
+            'dest': 'jupyter_rs_radia',
         }
     ]

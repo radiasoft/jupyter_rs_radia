@@ -29,7 +29,7 @@
     "homepage": "https://github.com/radiasoft/jupyter-rs-radia",
     "jupyterlab": {
         "extension": true,
-        "outputDir": "jupyter-rs-radia/labextension",
+        "outputDir": "jupyter_rs_radia/labextension",
         "sharedPackages": {
             "@jupyter-widgets/base": {
                 "bundled": false,
@@ -59,7 +59,7 @@
         "build:labextension:dev": "jupyter labextension build --development True .",
         "build:prod": "jlpm run build:labextension",
         "clean:all": "jlpm run clean:labextension",
-        "clean:labextension": "rimraf jupyter-rs-radia/labextension",
+        "clean:labextension": "rimraf jupyter_rs_radia/labextension",
         "install:extension": "jupyter labextension develop --overwrite .",
         "prepare": "jlpm run build:prod",
         "watch": "watch:labextension",
