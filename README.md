@@ -1,4 +1,4 @@
-jupyter-rs-radia
+jupyter_rs_radia
 ===============================
 
 Widget for visualizing 3D Radia models in a jupyter notebook
@@ -17,8 +17,8 @@ To install use pip:
 
 For a development installation (requires npm),
 
-    $ git clone https://github.com/radiasoft/jupyter-rs-radia.git
-    $ cd jupyter-rs-radia
+    $ git clone https://github.com/radiasoft/jupyter_rs_radia.git
+    $ cd jupyter_rs_radia
     $ pip install -e .
     $ jlpm install:extension
 
@@ -43,7 +43,7 @@ Understanding the viewer
 ------------
 You should see your selected geometry as below:
 
-![Radia_Example05](https://github.com/radiasoft/jupyter-rs-radia/blob/master/examples/Radia_Example05.png)
+![Radia_Example05](https://github.com/radiasoft/jupyter_rs_radia/blob/master/examples/Radia_Example05.png)
 
 #### Using the mouse or trackpad
 Click and drag in the 3D display to rotate the objects freehand.
