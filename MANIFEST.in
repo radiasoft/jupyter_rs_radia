@@ -1,3 +1,0 @@
-recursive-include jupyter_rs_radia/package_data *
-graft jupyter_rs_radia/static
-include jupyter_rs_radia.json
