@@ -1,11 +1,11 @@
-jupyter-rs-radia
+jupyter_rs_radia
 ===============================
 
 Widget for visualizing 3D Radia models in a jupyter notebook
 
 RadiaViewer allows users to render a magnet geometry and solve for its fields in a self-contained widget. The rendering is done by the VTK.js library.
 
-**NOTE**: The current build requires jupyterlab 2.1.0 and jupyterlab-server 1.2.0. 
+**NOTE**: This depends on JupyterLab 3.x
 
 Installation
 ------------
@@ -13,30 +13,21 @@ Installation
 To install use pip:
 
     $ pip install .
-    $ jupyter nbextension install --py --symlink --sys-prefix jupyter_rs_radia
-    $ jupyter nbextension enable --py --sys-prefix jupyter_rs_radia
-
-To install for jupyterlab
-
-    $ jupyter labextension install js
+	$ jupyter labextension install .
 
 For a development installation (requires npm),
 
-    $ git clone https://github.com/radiasoft/jupyter-rs-radia.git
-    $ cd jupyter-rs-radia
+    $ git clone https://github.com/radiasoft/jupyter_rs_radia.git
+    $ cd jupyter_rs_radia
     $ pip install -e .
-    $ jupyter nbextension install --py --symlink --sys-prefix jupyter_rs_radia
-    $ jupyter nbextension enable --py --sys-prefix jupyter_rs_radia
-    $ jupyter labextension install js
+    $ jlpm install:extension
 
-When actively developing your extension, build Jupyter Lab with the command:
+When actively developing your extension, use watch to hot reload on changes:
 
-    $ jupyter lab --watch
+    $ jlpm watch:labextension
 
 This takes a minute or so to get started, but then allows you to hot-reload your javascript extension.
 To see a change, save your javascript, watch the terminal for an update.
-
-Note on first `jupyter lab --watch`, you may need to touch a file to get Jupyter Lab to open.
 
 Setup
 ------------
@@ -52,7 +43,7 @@ Understanding the viewer
 ------------
 You should see your selected geometry as below:
 
-![Radia_Example05](https://github.com/radiasoft/jupyter-rs-radia/blob/master/examples/Radia_Example05.png)
+![Radia_Example05](https://github.com/radiasoft/jupyter_rs_radia/blob/master/examples/Radia_Example05.png)
 
 #### Using the mouse or trackpad
 Click and drag in the 3D display to rotate the objects freehand.
@@ -107,16 +98,16 @@ each member is individually selectable. However, if a member is also a container
 * Linear: vectors scale linearly according to their relative magnitude, i.e.
 
        *s =  (|v| - minV) / (maxV - minV)*
-       
+
     where minV and maxV are the minimum and maximum magnitudes among the vectors
-    
+
 * Log: vectors scale linearly according to the relative **log** of their magnitude, i.e.
 
         *s =  (maxV - minV) * (ln(|v|) - minLogV) / (maxLogV - minLogV)*
-    
+
     where minLogV and maxLogV are the minimum and maximum log magnitudes. The *(maxV - minV)* factor is there to keep
     the linear- and log-scaled vectors in the same visual range
-    
+
 #### Radia controls
 **Field**: selects the field plotted. Choices include:
 * M (magnetization)
@@ -145,5 +136,3 @@ settings.
 **Solve**: execute `RadSolve()`.  When complete, the solution will be reflected in the display of field vectors.
 Control-click an individual vector to see its magnitude and direction, or list the full set of field points and
 values wiith `rv.get_result()`.
-
-

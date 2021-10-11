@@ -1,0 +1,5 @@
+{
+  "load_extensions": {
+    "jupyter_rs_radia/extension": true
+  }
+}

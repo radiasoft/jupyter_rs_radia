@@ -1,0 +1,68 @@
+{
+    "author": {
+        "email": "support@sirepo.com",
+        "name": "RadiaSoft LLC"
+    },
+    "dependencies": {
+        "@jupyter-widgets/base": "^4.0.0",
+        "@jupyter-widgets/controls": "^3.0.0",
+        "@jupyterlab/application": "^3.1.13",
+        "@jupyterlab/apputils": "^3.1.13",
+        "bufferutil": "^4.0.1",
+        "d3": "^5.14.2",
+        "d3-scale": "^3.2.1",
+        "jquery": "^3.5.1",
+        "lodash": "^4.17.21",
+        "os-locale": "^4.0.0",
+        "uglify-js": "^3.6.7",
+        "utf-8-validate": "^5.0.2",
+        "yargs": "^14.2.0"
+    },
+    "description": "Radia widget for Jupyter",
+    "devDependencies": {
+        "@jupyterlab/builder": "^3.1.0",
+        "rimraf": "^3.0.2"
+    },
+    "files": [
+        "lib/**/*.js"
+    ],
+    "homepage": "https://github.com/radiasoft/jupyter_rs_radia",
+    "jupyterlab": {
+        "extension": true,
+        "outputDir": "jupyter_rs_radia/labextension",
+        "sharedPackages": {
+            "@jupyter-widgets/base": {
+                "bundled": false,
+                "singleton": true
+            }
+        }
+    },
+    "keywords": [
+        "ipython",
+        "ipywidgets",
+        "jupyter",
+        "jupyterlab-extension",
+        "radia",
+        "vtk",
+        "widgets"
+    ],
+    "license": "Apache-2.0",
+    "main": "lib/labplugin.js",
+    "name": "jupyter_rs_radia",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/radiasoft/rsjpyradia/jupyter_rs_radia.git"
+    },
+    "scripts": {
+        "build": "jlpm run build:labextension:dev",
+        "build:labextension": "jupyter labextension build .",
+        "build:labextension:dev": "jupyter labextension build --development True .",
+        "build:prod": "jlpm run build:labextension",
+        "clean:all": "jlpm run clean:labextension",
+        "clean:labextension": "rimraf jupyter_rs_radia/labextension",
+        "install:extension": "jupyter labextension develop --overwrite .",
+        "prepare": "jlpm run build:prod",
+        "watch:labextension": "jupyter labextension watch ."
+    },
+    "version": "0.0.1"
+}

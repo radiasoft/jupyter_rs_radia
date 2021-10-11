@@ -59,8 +59,8 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
 
     _view_name = Unicode('RadiaViewerView').tag(sync=True)
     _model_name = Unicode('RadiaViewerModel').tag(sync=True)
-    _view_module = Unicode('jupyter-rs-radia').tag(sync=True)
-    _model_module = Unicode('jupyter-rs-radia').tag(sync=True)
+    _view_module = Unicode('jupyter_rs_radia').tag(sync=True)
+    _model_module = Unicode('jupyter_rs_radia').tag(sync=True)
     _view_module_version = Unicode('^0.0.1').tag(sync=True)
     _model_module_version = Unicode('^0.0.1').tag(sync=True)
 

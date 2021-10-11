@@ -5,9 +5,5 @@ dist/
 build/
 *.py[cod]
 node_modules/
-
-# Compiled javascript
-jupyter_rs_radia/static/
-
-# OS X
 .DS_Store
+jupyter_rs_radia/labextension
