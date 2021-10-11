@@ -8,15 +8,10 @@
         "@jupyter-widgets/controls": "^3.0.0",
         "@jupyterlab/application": "^3.1.13",
         "@jupyterlab/apputils": "^3.1.13",
-        "bufferutil": "^4.0.1",
         "d3": "^5.14.2",
         "d3-scale": "^3.2.1",
         "jquery": "^3.5.1",
-        "lodash": "^4.17.21",
-        "os-locale": "^4.0.0",
-        "uglify-js": "^3.6.7",
-        "utf-8-validate": "^5.0.2",
-        "yargs": "^14.2.0"
+        "lodash": "^4.17.21"
     },
     "description": "Radia widget for Jupyter",
     "devDependencies": {
