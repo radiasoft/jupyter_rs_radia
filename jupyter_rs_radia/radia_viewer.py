@@ -9,8 +9,8 @@ import radia
 from jupyter_rs_radia import radia_tk
 from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import vtk_viewer
-from pykern import pkcollections
 from pykern import pkio
+from pykern import pkjson
 from pykern import pkresource
 from pykern.pkcollections import PKDict
 from traitlets import All, Any, Dict, Instance, List, Unicode
@@ -215,7 +215,7 @@ class RadiaViewer(ipywidgets.VBox, rs_utils.RSDebugger):
         self.vtk_viewer = vtk_viewer.Viewer()
 
         #TODO(mvk): build view from this schema
-        self.schema = pkcollections.json_load_any(
+        self.schema = pkjson.load_any(
             pkio.py_path(pkresource.filename('schema.json')),
         )
 
