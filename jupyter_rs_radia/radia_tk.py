@@ -2,34 +2,53 @@ import numpy
 import radia
 import sys
 
-from jupyter_rs_radia import rs_utils
 from jupyter_rs_vtk import gui_utils
 from numpy import linalg
 from pykern.pkcollections import PKDict
 from pykern.pkdebug import pkdp
 
-FIELD_TYPE_MAG_A = 'A'
-FIELD_TYPE_MAG_B = 'B'
-FIELD_TYPE_MAG_H = 'H'
-FIELD_TYPE_MAG_J = 'J'
-FIELD_TYPE_MAG_M = 'M'
+FIELD_TYPE_MAG_A = "A"
+FIELD_TYPE_MAG_B = "B"
+FIELD_TYPE_MAG_H = "H"
+FIELD_TYPE_MAG_J = "J"
+FIELD_TYPE_MAG_M = "M"
 FIELD_TYPES = [FIELD_TYPE_MAG_M]
 POINT_FIELD_TYPES = [
-    FIELD_TYPE_MAG_B, FIELD_TYPE_MAG_A, FIELD_TYPE_MAG_H, FIELD_TYPE_MAG_J
+    FIELD_TYPE_MAG_B,
+    FIELD_TYPE_MAG_A,
+    FIELD_TYPE_MAG_H,
+    FIELD_TYPE_MAG_J,
 ]
 FIELD_TYPES.extend(POINT_FIELD_TYPES)
 
 # these might be available from radia
-FIELD_UNITS = PKDict({
-    FIELD_TYPE_MAG_A: 'T m',
-    FIELD_TYPE_MAG_B: 'T',
-    FIELD_TYPE_MAG_H: 'A/m',
-    FIELD_TYPE_MAG_J: 'A/m^2',
-    FIELD_TYPE_MAG_M: 'A/m',
-})
+FIELD_UNITS = PKDict(
+    {
+        FIELD_TYPE_MAG_A: "T m",
+        FIELD_TYPE_MAG_B: "T",
+        FIELD_TYPE_MAG_H: "A/m",
+        FIELD_TYPE_MAG_J: "A/m^2",
+        FIELD_TYPE_MAG_M: "A/m",
+    }
+)
 
 
-class RadiaGeomMgr(rs_utils.RSDebugger):
+def to_pkdict(d):
+    pkd = PKDict(d)
+    for k, v in pkd.items():
+        # PKDict([]) returns {} - catch that
+        if not v:
+            continue
+        try:
+            pkd[k] = to_pkdict(v)
+        except TypeError:
+            pass
+        except ValueError:
+            pkd[k] = v
+    return pkd
+
+
+class RadiaGeomMgr:
     """Manager for multiple geometries (Radia objects)"""
 
     def _get_all_geom(self, geom):
@@ -74,7 +93,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data = gui_utils.new_geom_object()
         v_data.vectors.lengths = []
         v_data.vectors.colors = []
-        v_max = 0.
+        v_max = 0.0
         v_min = sys.float_info.max
         for i in range(len(pv_arr)):
             p = pv_arr[i][0]
@@ -82,7 +101,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             n = linalg.norm(v)
             v_max = max(v_max, n)
             v_min = min(v_min, n)
-            nv = (numpy.array(v) / (n if n > 0 else 1.)).tolist()
+            nv = (numpy.array(v) / (n if n > 0 else 1.0)).tolist()
             v_data.vectors.vertices.extend(p)
             v_data.vectors.directions.extend(nv)
             v_data.vectors.magnitudes.append(n)
@@ -100,18 +119,18 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
         v_data.lines.colors.extend(l_data.lines.colors)
 
         return PKDict(
-            name=name + '.Field',
+            name=name + ".Field",
             id=self.get_geom(name),
             data=[v_data],
-            bounds=geom_data.bounds
+            bounds=geom_data.bounds,
         )
 
     def geom_to_data(self, name=None, divide=True):
-        #TODO(mvk): if no color, get color from parent if any?
+        # TODO(mvk): if no color, get color from parent if any?
         g_id = self.get_geom(name)
-        n = (name if name is not None else str(g_id)) + '.Geom'
+        n = (name if name is not None else str(g_id)) + ".Geom"
         pd = PKDict(name=n, id=g_id, data=[])
-        d = rs_utils.to_pkdict(radia.ObjDrwVTK(g_id, 'Axes->No'))
+        d = to_pkdict(radia.ObjDrwVTK(g_id, "Axes->No"))
         n_verts = len(d.polygons.vertices)
         c = radia.ObjCntStuf(g_id)
         l = len(c)
@@ -124,7 +143,7 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
             for g in c:
                 # for fully recursive array
                 # for g in get_all_geom(geom):
-                s_d = rs_utils.to_pkdict(radia.ObjDrwVTK(g, 'Axes->No'))
+                s_d = to_pkdict(radia.ObjDrwVTK(g, "Axes->No"))
                 n_s_verts += len(s_d.polygons.vertices)
                 d_arr.append(s_d)
             # if the number of vertices of the container is more than the total
@@ -147,14 +166,11 @@ class RadiaGeomMgr(rs_utils.RSDebugger):
 
     # A container is also a geometry
     def make_container(self, *args):
-        ctr = {
-            'geoms': []
-        }
+        ctr = {"geoms": []}
         for g_name in args:
             # key error if does not exist
             g = self.get_geom(g_name)
-            ctr['geoms'].append(g)
+            ctr["geoms"].append(g)
 
     def __init__(self):
         self._geoms = PKDict({})
-
