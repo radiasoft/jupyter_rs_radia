@@ -1,14 +1,15 @@
-let rsdbg = console.log.bind(console);
-let rslog = console.log.bind(console);
-let rserr = console.error.bind(console);
 
-function indexArray(size) {
+export let rsdbg = console.log.bind(console);
+export let rslog = console.log.bind(console);
+export let rserr = console.error.bind(console);
+
+export function indexArray(size) {
     var res = [];
     for (var i = 0; i < size; res.push(i++)) {}
     return res;
 }
 
-function linearlySpacedArray(start, stop, nsteps) {
+export function linearlySpacedArray(start, stop, nsteps) {
    if (nsteps < 1) {
        throw new Error('linearlySpacedArray: steps ' + nsteps + ' < 1');
    }
@@ -24,7 +25,7 @@ function linearlySpacedArray(start, stop, nsteps) {
    return res;
 }
 
-function normalize(seq) {
+export function normalize(seq) {
     const sMax = Math.max.apply(null, seq);
     const sMin = Math.min.apply(null, seq);
     let sRange = sMax - sMin;
@@ -34,20 +35,10 @@ function normalize(seq) {
     });
 }
 
-function roundToPlaces(val, p) {
+export function roundToPlaces(val, p) {
     if (p < 0) {
         return val;
     }
     const r = Math.pow(10, p);
     return Math.round(val * r) / r;
 }
-
-module.exports = {
-    indexArray: indexArray,
-    linearlySpacedArray: linearlySpacedArray,
-    normalize: normalize,
-    roundToPlaces: roundToPlaces,
-    rsdbg: rsdbg,
-    rserr: rserr,
-    rslog: rslog,
-};
