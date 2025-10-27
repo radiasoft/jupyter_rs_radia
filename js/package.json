@@ -14,14 +14,15 @@
         "dist/*.js"
     ],
     "scripts": {
-        "clean": "rimraf dist/ && rimraf ../jupyter_rs_radia/labextension/",
-        "prepublish": "yarn run clean && yarn run build:prod",
-        "build": "webpack --mode=development && yarn run build:labextension:dev",
-        "build:prod": "webpack --mode=production && yarn run build:labextension",
+        "build": "jlpm run build:labextension:dev",
         "build:labextension": "jupyter labextension build .",
         "build:labextension:dev": "jupyter labextension build --development True .",
-        "watch": "webpack --watch --mode=development",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "build:prod": "jlpm run build:labextension",
+        "clean:all": "jlpm run clean:labextension",
+        "clean:labextension": "rimraf jupyter_rs_radia/labextension",
+        "install:extension": "jupyter labextension develop --overwrite .",
+        "prepare": "jlpm run build:prod",
+        "watch:labextension": "jupyter labextension watch ."
     },
     "devDependencies": {
         "@jupyterlab/builder": "^3.0.0",
@@ -35,8 +36,7 @@
         "@jupyterlab/apputils": "^3.1.13",
         "d3": "^5.14.2",
         "d3-scale": "^3.2.1",
-        "jquery": "^3.7.1",
-        "yarn": "^1.22.22"
+        "jquery": "^3.7.1"
     },
     "jupyterlab": {
         "extension": "lib/labplugin",

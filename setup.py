@@ -24,7 +24,7 @@ data_files_spec = [
 
 cmdclass = create_cmdclass("jsdeps", data_files_spec=data_files_spec)
 cmdclass["jsdeps"] = combine_commands(
-    install_npm(JS_DIR, npm=["yarn"], build_cmd="build:prod"),
+    install_npm(JS_DIR, npm=["jlpm"], build_cmd="build:prod"),
     ensure_targets(jstargets),
 )
 
