@@ -1,14 +1,4 @@
 
-/* let _ = require('lodash');
- * let $ = require('jquery');
- * let controls = require('@jupyter-widgets/controls');
- * let d3 = require('d3');
- * let d3Scale = require('d3-scale');
- * let guiUtils = require('./gui_utils');
- * let rsUtils = require('./rs_utils');
- * let widgets = require('@jupyter-widgets/base');
- * */
-
 import $ from 'jquery';
 import * as d3 from 'd3';
 import * as guiUtils from './gui_utils.js';
