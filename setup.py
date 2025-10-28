@@ -9,7 +9,7 @@ from jupyter_packaging import (
 )
 
 HERE = Path(__file__).parent.resolve()
-JS_DIR = PARENT / "js"
+JS_DIR = HERE / "js"
 
 # Representative files that should exist after a successful build
 jstargets = [HERE / "jupyter_rs_radia" / "labextension" / "package.json"]
