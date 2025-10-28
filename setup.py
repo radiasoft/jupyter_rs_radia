@@ -12,7 +12,7 @@ HERE = Path(__file__).parent.resolve()
 JS_DIR = PARENT / "js"
 
 # Representative files that should exist after a successful build
-jstargets = [HERE / "jupyter_rs_radia" / "labextensions" / "package.json"]
+jstargets = [HERE / "jupyter_rs_radia" / "labextension" / "package.json"]
 
 data_files_spec = [
     (
