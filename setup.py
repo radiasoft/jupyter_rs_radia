@@ -8,10 +8,11 @@ from jupyter_packaging import (
     combine_commands,
 )
 
-JS_DIR = Path(__file__).resolve().parent / "js"
+HERE = Path(__file__).parent.resolve()
+JS_DIR = PARENT / "js"
 
 # Representative files that should exist after a successful build
-jstargets = [JS_DIR / "dist" / "index.js"]
+jstargets = [HERE / "jupyter_rs_radia" / "labextensions" / "package.json"]
 
 data_files_spec = [
     (
