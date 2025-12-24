@@ -1,3 +1,26 @@
 [build-system]
-requires = ["jupyter_packaging~=0.7.9", "jupyterlab~=3.0", "setuptools>=40.8.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.18", "hatch-jupyter-builder>=0.9"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupyter_rs_radia"
+version = "0.2.0"
+authors = [
+    { name = "RadiaSoft LLC", email = "pip@pykern.org" },
+]
+
+[tool.hatch.build]
+# include the built labextension in the wheel (paths adjusted to your repo)
+artifacts = [
+  "jupyter_rs_radia/labextension/**",
+  "jupyter_rs_radia/install.json",
+]
+
+[tool.hatch.build.hooks.jupyter-builder]
+build-function = "hatch_jupyter_builder.npm_builder"
+dependencies = ["jupyterlab>=4"]  # optional, only if you need it at build-time
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+npm = ["jlpm"]
+path = "js"
+build_cmd = "build:prod"
