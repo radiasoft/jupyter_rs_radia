@@ -25,17 +25,17 @@
         "watch:labextension": "jupyter labextension watch ."
     },
     "devDependencies": {
-        "@jupyterlab/builder": "^3.0.0",
-        "rimraf": "^2.6.1",
+        "@jupyterlab/builder": "^4.5.1",
+        "rimraf": "^6.1.2",
         "webpack": "^5"
     },
     "dependencies": {
-        "@jupyter-widgets/base": "^4.0.0",
-        "@jupyter-widgets/controls": "^3.0.0",
-        "@jupyterlab/application": "^3.1.13",
-        "@jupyterlab/apputils": "^3.1.13",
-        "d3": "^5.14.2",
-        "d3-scale": "^3.2.1",
+        "@jupyter-widgets/base": "^6.0.11",
+        "@jupyter-widgets/controls": "^5.0.12",
+        "@jupyterlab/application": "^4.5.1",
+        "@jupyterlab/apputils": "^4.6.1",
+        "d3": "^7.9.0",
+        "d3-scale": "^4.0.2",
         "jquery": "^3.7.1"
     },
     "jupyterlab": {

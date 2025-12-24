@@ -4,9 +4,8 @@ dist/
 build/
 *.py[cod]
 node_modules/
-
-# Compiled javascript
-jupyter_rs_radia/labextension/
+js/yarn.lock
+js/.yarn
 
 # OS X
 .DS_Store

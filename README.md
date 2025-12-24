@@ -5,7 +5,7 @@ Widget for visualizing 3D Radia models in a jupyter notebook
 
 RadiaViewer allows users to render a magnet geometry and solve for its fields in a self-contained widget. The rendering is done by the VTK.js library.
 
-**NOTE**: This depends on JupyterLab 3.x
+**NOTE**: This depends on JupyterLab 4.x
 
 Installation
 ------------
@@ -13,14 +13,12 @@ Installation
 To install use pip:
 
     $ pip install .
-	$ jupyter labextension install .
 
 For a development installation (requires npm),
 
     $ git clone https://github.com/radiasoft/jupyter_rs_radia.git
     $ cd jupyter_rs_radia
     $ pip install -e .
-    $ jlpm install:extension
 
 When actively developing your extension, use watch to hot reload on changes:
 
