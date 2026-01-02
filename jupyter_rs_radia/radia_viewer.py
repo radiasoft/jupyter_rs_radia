@@ -93,6 +93,8 @@ class RadiaViewer(ipywidgets.VBox):
         """
         self.mgr.add_geom(g_name, geom)
         self.geom_list.options = [n for n in self.mgr.get_geoms()]
+        self.current_geom = g_name
+        self.geom_list.value = g_name
 
     # 'API' calls should support 'command line' style of invocation, and not
     # rely solely on current widget settings
@@ -208,7 +210,6 @@ class RadiaViewer(ipywidgets.VBox):
     def __init__(self, mgr=None):
         self.model_data = {}
         self.mgr = radia_tk.RadiaGeomMgr() if mgr is None else mgr
-        self.on_displayed(self._radia_displayed)
         self.vtk_viewer = vtk_viewer.Viewer()
 
         # TODO(mvk): build view from this schema
@@ -545,10 +546,6 @@ class RadiaViewer(ipywidgets.VBox):
     # def _export(self, b):
     #    self.rsdbg('EXPORT {}'.format(self.solve_results))
     #    self.send({'type': 'download'})
-
-    def _radia_displayed(self, o):
-        # self.rsdbg('_radia_displayed')
-        self.geom_list.value = self.current_geom
 
     def _refresh(self):
         self._set_title()
