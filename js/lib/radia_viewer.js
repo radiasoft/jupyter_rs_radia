@@ -44,8 +44,8 @@ export class RadiaViewerModel extends VBoxModel {
             _view_name: 'RadiaViewerView',
             _model_module: 'jupyter_rs_radia',
             _view_module: 'jupyter_rs_radia',
-            _model_module_version: '0.1.0',
-            _view_module_version: '0.1.0',
+            _model_module_version: '0.2.0',
+            _view_module_version: '0.2.0',
         };
     }
 }

@@ -1,6 +1,6 @@
 {
     "name": "jupyter_rs_radia",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Radia widget for Jupyter",
     "author": "RadiaSoft LLC",
     "license": "BSD-3-Clause",
